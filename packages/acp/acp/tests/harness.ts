@@ -27,6 +27,7 @@ import * as JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-j
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as AcpPlugin from '../src/index.ts'
 import type { AcpConfig } from '../src/index.ts'
+import type { AcpModePermissions } from '../src/mode-control.ts'
 
 /** Scripted adapter for protocol tests. */
 class MockAdapter extends LlmAdapter {
@@ -224,6 +225,7 @@ export async function makeBridgeHarness(options: {
   persona?: string
   imageCapable?: boolean
   attachments?: boolean
+  permissions?: AcpModePermissions
   persistenceRoot?: string
 } = {}): Promise<BridgeHarness> {
   const adapter = new MockAdapter(options.script ?? [], options.imageCapable === true)
@@ -236,6 +238,11 @@ export async function makeBridgeHarness(options: {
   if (options.attachments !== false) await ctx.plugin(MemoryAttachmentStore)
   const loopFiber = await ctx.plugin(AgentLoop, { agents: [] })
   const primaryAdapter = ctx.llm.registerAdapter(['mock'], adapter)
+  // The preset service is optional in production composition, so tests install
+  // the same optional service under its real name before the bridge reads it.
+  if (options.permissions !== undefined) {
+    ctx.provide('permissionPresets' as string, options.permissions)
+  }
 
   const agentToClient = new TransformStream<Uint8Array, Uint8Array>()
   const clientToAgent = new TransformStream<Uint8Array, Uint8Array>()

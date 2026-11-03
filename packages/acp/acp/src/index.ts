@@ -49,8 +49,12 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
 // Side-effect type import: declaration-merges the approval waterfall answered below.
 import type {} from '@deepseek-ai/dsh-user-approval'
+// Side-effect type import: declaration-merges the optional `ctx.permissionPresets`
+// service and the `permission-presets/catalog-changed` event this bridge listens to.
+import type {} from '@deepseek-ai/dsh-permission-presets'
 import { supportsAcpImagePrompts } from './content.ts'
 import { AcpMcpConfigError } from './mcp.ts'
+import { AcpModeConfigError } from './mode-control.ts'
 import { AcpModelConfigError } from './model-control.ts'
 import { AcpSession } from './session.ts'
 
@@ -149,6 +153,15 @@ export function apply(ctx: Context, config: AcpConfig): void {
   })
 
   ctx.on('llm/adapters-updated', () => {
+    for (const record of sessions.values()) record.topologyChanged()
+  })
+
+  // The live permission catalog can change without any session activity: the
+  // Auto review integration publishes or retires a preset at runtime. Every open
+  // session therefore republishes its complete option state, the same way a
+  // provider/model topology change already does, so a client's mode selector
+  // never shows a stale catalog.
+  ctx.on('permission-presets/catalog-changed', () => {
     for (const record of sessions.values()) record.topologyChanged()
   })
 
@@ -339,7 +352,10 @@ export function apply(ctx: Context, config: AcpConfig): void {
       try {
         return { configOptions: await record.setConfig(params.configId, params.value, signal) }
       } catch (error: unknown) {
-        if (error instanceof AcpModelConfigError) throw invalidParams(error.message)
+        // Both configuration failures are caller-correctable (unknown option or
+        // value), so they belong on the invalid-params side of the wire rather
+        // than the generic internal error.
+        if (error instanceof AcpModelConfigError || error instanceof AcpModeConfigError) throw invalidParams(error.message)
         throw error
       }
     },

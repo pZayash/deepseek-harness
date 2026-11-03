@@ -13,10 +13,14 @@ import {
 import type { Agent, AgentHandle, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, errorChain, type UserMessage } from '@deepseek-ai/dsh-llm'
+// Side-effect type import: declaration-merges the optional `ctx.permissionPresets`
+// service read below. The presets package is a peer, not a hard runtime import.
+import type {} from '@deepseek-ai/dsh-permission-presets'
 import { type Session, type SessionEvent, type SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AcpContentError, admitAcpPrompt } from './content.ts'
 import { turnEndToStopReason } from './codec.ts'
 import { mountAcpMcpServers } from './mcp.ts'
+import { AcpModeControl, MODE_CONFIG_ID } from './mode-control.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
@@ -92,6 +96,7 @@ async function composeAgent(agentCtx: Context, options: AcpSessionBuildOptions):
 export class AcpSession {
   /** The exact top-level Agent owned by this ACP session. */
   readonly agent: Agent
+  private readonly modeControl: AcpModeControl | undefined
   private readonly modelControl: AcpModelControl
   private outputTail = Promise.resolve()
   private inflight: InflightPrompt | undefined
@@ -104,6 +109,14 @@ export class AcpSession {
   ) {
     this.agent = handle.agent
     this.modelControl = new AcpModelControl(ctx.llm, handle.agent.model)
+    // Optional by composition, not by policy: the shipped acp bundle mounts
+    // permission presets through dsh-base, while minimal compositions such as
+    // sdk-minimal do not. A missing service only drops the `mode` option, so the
+    // bridge keeps working without the presets package installed.
+    const permissions = ctx.get('permissionPresets')
+    this.modeControl = permissions === undefined
+      ? undefined
+      : new AcpModeControl(permissions, handle.agent.session)
     this.disposeAgent = () => handle.dispose()
   }
 
@@ -163,13 +176,16 @@ export class AcpSession {
   }
 
   /**
-   * Return the complete standard model configuration state.
+   * Return the complete standard configuration state: model, reasoning, and mode.
    * @param signal - optional request cancellation.
    * @returns provider-grouped model and exact-model reasoning options.
    */
-  configOptions(signal?: AbortSignal): Promise<SessionConfigOption[]> {
+  async configOptions(signal?: AbortSignal): Promise<SessionConfigOption[]> {
     this.assertActive()
-    return this.modelControl.options(signal)
+    const options = await this.modelControl.options(signal)
+    // Mode rides last: clients that position selectors by option order keep the
+    // model and reasoning pair where they were before presets were exposed.
+    return this.modeControl === undefined ? options : [...options, ...this.modeControl.options()]
   }
 
   /**
@@ -179,15 +195,23 @@ export class AcpSession {
    * @param signal - optional request cancellation.
    * @returns the complete resulting option state.
    */
-  setConfig(configId: string, value: unknown, signal?: AbortSignal): Promise<SessionConfigOption[]> {
+  async setConfig(configId: string, value: unknown, signal?: AbortSignal): Promise<SessionConfigOption[]> {
     this.assertActive()
-    return this.modelControl.set(configId, value, signal)
+    // A mode switch writes the Session's sandbox and approval knobs, not the
+    // model route, so it applies without waiting for the next model step; the
+    // response still carries the complete option state the protocol requires.
+    if (configId === MODE_CONFIG_ID && this.modeControl !== undefined) {
+      const mode = this.modeControl.set(value)
+      return [...await this.modelControl.options(signal), ...mode]
+    }
+    const options = await this.modelControl.set(configId, value, signal)
+    return this.modeControl === undefined ? options : [...options, ...this.modeControl.options()]
   }
 
   /** Resolve topology state off-chain, then serialize its notification without blocking execution updates. */
   topologyChanged(): void {
     if (this.closing !== undefined) return
-    void this.modelControl.options()
+    void this.configOptions()
       .then((configOptions) => {
         if (this.closing !== undefined) return
         const previous = this.outputTail
