@@ -185,3 +185,62 @@ Docs accompany every code change: update affected README and JSDoc contracts tog
 ## Vendoring policy
 
 `vendor/` packages are pinned source copies (manifest with upstream SHAs in [vendor/README.md](vendor/README.md)). Update via the sync procedure there; re-apply or retire the logged local modifications; rerun `pnpm run test && pnpm run build`.
+
+<!-- dsh-fork: fork conventions; keep appended at the end of this file -->
+
+## Fork Merge Conventions
+
+This repository is a fork of `deepseek-ai/deepseek-harness` used for local
+deployment needs (bb as an ACP consumer). Keep the fork delta small and
+merges cheap with these rules.
+
+### Push to the fork only
+
+- `origin` is our fork (`pZayash/deepseek-harness`); `upstream` is
+  `deepseek-ai/deepseek-harness`. Push commits and branches to `origin` only.
+- Never push a branch to `upstream`, and never open, reopen, or comment on a
+  pull request or issue in `deepseek-ai/deepseek-harness` without the user's
+  explicit approval in the current conversation. Only a human decides whether
+  work goes upstream.
+
+### Keep fork code in fork-owned files
+
+- Put new behavior in new modules beside the call site (precedent:
+  `packages/acp/acp/src/mode-control.ts`), not inside upstream functions.
+  Limit edits inside an upstream file to roughly five lines per seam; when a
+  change needs more, extract a helper into a fork-owned module and leave only
+  the call site.
+- Prefer profile patch overlays (`dsh --patch`, `$DSH_HOME/profiles`) and new
+  plugins over editing shipped profile templates and plugin lists.
+- Prefer standard protocol surfaces over private extensions: a feature that
+  fits a standard ACP config option or session option goes through it, never
+  a `_meta` field or private method (precedent: the `mode` permission option).
+- Do not delete upstream exports, options, or constants to make fork behavior
+  work; extend beside them. Deletions conflict on every upstream refactor.
+
+### Mark every fork edit
+
+- Prefix fork additions and edits with a searchable marker:
+  `// dsh-fork: <why>`, `<!-- dsh-fork: <why> -->`, or `# dsh-fork: <why>`.
+- Audit the fork surface per branch with
+  `git diff upstream/master...HEAD --stat` and `rg "dsh-fork"`.
+
+### Merge ritual
+
+- Merge `upstream/master` into the working branch often; upstream lands
+  breaking changes daily and a stale branch turns each merge into archaeology.
+- Keep `git config rerere.enabled true` enabled so repeated conflict
+  resolutions replay automatically.
+- After a merge: `pnpm install`, `pnpm run build:artifacts` (the `dsh` shim
+  runs `apps/cli/lib`, so stale artifacts leave the deployed CLI behind),
+  `pnpm run typecheck`, and the focused tests the
+  [dsh-pre-push-checks](.agents/skills/dsh-pre-push-checks/SKILL.md) skill
+  selects for the conflict surface.
+- Fork changes that alter an externally perceptible surface need an upgrade
+  guide entry like any upstream break ([dsh-create-upgrade-guide](.agents/skills/dsh-create-upgrade-guide/SKILL.md));
+  persistence changes still follow `SESSION_FORMAT_VERSION` rules.
+
+### Push hooks
+
+- `lefthook` runs repo gates on `pre-push` (typecheck took ~3 minutes for the
+  first fork push). Expect it; fix failures instead of bypassing the hook.
