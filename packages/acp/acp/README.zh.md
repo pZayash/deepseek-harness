@@ -70,7 +70,7 @@ kind: "package-reference"
 | `session/set_config_option` | 串行更新公布的 `model` 或 `reasoning_effort`，并返回完整结果状态。 |
 | `session/prompt` | 有序文本、资源链接与受支持图片，每个会话一次一个提示词；根 Agent 与后代完成且有序更新交付后才结算。 |
 | `session/cancel` / `$/cancel_request` | 提示词所拥有的取消路径；没有进行中的 ACP 提示词时取消自主工作，未知会话 id 则为空操作。 |
-| `session/update` | 已提交 assistant 消息与 thought、带标准 kind、title、locations、调用时 diff 和撰写内容的工具生命周期、配置变化与上下文用量，按会话串行交付。 |
+| `session/update` | 已提交 assistant 消息与 thought、带标准 kind、title、locations、调用时与结果时 diff 和撰写内容的工具生命周期、配置变化与上下文用量，按会话串行交付。 |
 | `session/request_permission` | 携带已发出工具调用的权限提示，带一次性允许／拒绝选项；你的客户端可以自动回答。 |
 
 会话列表和恢复允许普通 fork，包括含有 `parentSession` 的历史日志；`origin: subagent` 仍被排除。

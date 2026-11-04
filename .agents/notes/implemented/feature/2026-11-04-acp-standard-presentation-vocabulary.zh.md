@@ -14,13 +14,15 @@ Status: implemented
 
 `toolCallUpdate(ctx, agent, event)` 解析 `ctx.get('tools')?.get(name, agent)?.presentCall(args)`——与 Host presenter 和 Web 卡片消费的同一个纯 render-intent seam——并把带标签的 `ToolCallView` 映射到标准 `ToolCall` 字段：所有卡片使用 view 的 title；`kind` 取通用卡片声明值，terminal 卡片为 `execute`，diff 卡片为 `edit`；`locations` 中的模型面向路径相对于 `session.header.cwd` 解析，因为 ACP 文件路径按文档要求为绝对路径；`rawInput` 取通用卡片声明的显著输入，否则为已提交参数；卡片撰写的文本映射为 `content` 条目；diff 卡片的 `FileDiff` 以同样的绝对化规则映射为 `{type:'diff'}` 内容条目。参数 JSON 畸形、缺少注册表／定义／意图，或 presenter 抛错时，一律回退到通用卡片：以工具名为 title、`kind: 'other'`、参数取解析结果或原始字符串。调用卡片内容只映射文本块，因为该投影必须同步完成。
 
-同一投影对象在 `tool/call` 提交时同步存入每会话 `Map<callId, ToolCall>`，在 `tool/result` 时按调用删除，并在 `turn/end` 时整体清空，以处理无结果的中止调用。`tool/call` 先于 `pipeline.prepare` 与 `approval/request` 提交，且 `session/event` 观察者是同步执行的，因此 `session/request_permission` 总能嵌入与实际发出完全一致的 ToolCall；无法解析的调用 id 仍保留 `{toolCallId}` 的裸回退。一次性 `allow-once` 保持为第一个选项，因为客户端的选项顺序属于 wire 契约。
+发出的卡片在 `tool/call` 提交时同步存入每会话映射，并与该调用已提交的名称和原始参数配对，在 `tool/result` 时按调用删除，并在 `turn/end` 时整体清空，以处理无结果的中止调用。`tool/call` 先于 `pipeline.prepare` 与 `approval/request` 提交，且 `session/event` 观察者是同步执行的，因此 `session/request_permission` 总能嵌入与实际发出完全一致的 ToolCall；无法解析的调用 id 仍保留 `{toolCallId}` 的裸回退。一次性 `allow-once` 保持为第一个选项，因为客户端的选项顺序属于 wire 契约。
+
+`toolResultUpdate(ctx, agent, event, call)` 把同一 seam 应用到完成态：保留的已提交名称和原始参数——`tool/result` 事件两者都不携带——用于解析 `ctx.get('tools')?.get(name, agent)?.presentResult(args, {content, isError, meta})`，其中 `meta` 是事件上持久化的展示载荷。`diff` 意图在已转换内容块旁追加 `{type:'diff'}` 条目；持久化的 diff 路径已是绝对路径，因此结果时投影无需 cwd 解析。每个意图的 `title` 替换卡片标题；其他卡片种类保留原始内容投影。缺少保留调用、注册表、定义或意图、调用 JSON 畸形，以及 presenter 抛错时，一律保留原始内容投影。
 
 `initialize` 通过 `fileURLToPath` 从相对 `import.meta.url` 的 `../package.json` 读取 `agentInfo.version`——可执行文件的虚拟文件系统只拦截字符串路径，不拦截 URL 参数——并按语义化版本校验；版本不可读或非法时插件加载失败。`../package.json` 在 `src/` 与 `lib/` 下都能解析到包根。
 
 `@deepseek-ai/dsh-tools` 是可选 peer 依赖：没有注册表的组装保留通用卡片，与 `permissionPresets`／`tokenMeter` 的可选服务模式一致。
 
-所有字段都由已提交的 `tool/call` 事实及其纯函数派生，因此 model-visible⟺logged 保持不变，本变更不需要新的会话事件、格式版本或投影。
+所有字段都由已提交的 `tool/call` 与 `tool/result` 事实及其纯函数派生，因此 model-visible⟺logged 保持不变，本变更不需要新的会话事件、格式版本或投影。
 
 ## 考虑过的替代方案
 
@@ -34,4 +36,4 @@ Status: implemented
 
 ## 结果
 
-图形客户端可以渲染有意义的工具卡片与权限提示，支持文件跟随和调用时 diff；自动化消费者只收到严格叠加的字段。桥接层成为工具 render-intent seam 的可选消费者，每个会话只保留一个有界的在途调用投影映射。调用时 diff 由调用参数派生，因此新建的 `oldText` 为 `null`；结果时 diff、更丰富的结果内容、计划更新和 terminal 卡片仍不进入 wire。
+图形客户端可以渲染有意义的工具卡片与权限提示，支持文件跟随和调用时与结果时 diff；自动化消费者只收到严格叠加的字段。桥接层成为工具 render-intent seam 的可选消费者，每个会话只保留一个有界的在途调用投影与身份映射。调用时 diff 由调用参数派生，因此新建的 `oldText` 为 `null`；结果时 diff 由持久化的已应用变更元数据派生。更丰富的结果内容、计划更新和 terminal 卡片仍不进入 wire。

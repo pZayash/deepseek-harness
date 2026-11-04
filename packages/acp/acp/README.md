@@ -70,7 +70,7 @@ One connection can run several sessions at once, each independent. The calls a c
 | `session/set_config_option` | A serialized update to the advertised `model`, `reasoning_effort`, or `mode`, returning the complete resulting state. |
 | `session/prompt` | Ordered text, resource links, and supported images, one prompt at a time per session; settlement follows root and descendant completion plus ordered update delivery. |
 | `session/cancel` / `$/cancel_request` | The prompt-owned cancellation path; without an ACP prompt in flight it cancels autonomous work, while unknown session ids are no-ops. |
-| `session/update` | Committed assistant messages and thoughts, tool lifecycle with standard kind, title, locations, call-time diffs, and authored content, configuration changes, and context usage, serialized per session. |
+| `session/update` | Committed assistant messages and thoughts, tool lifecycle with standard kind, title, locations, call- and result-time diffs, and authored content, configuration changes, and context usage, serialized per session. |
 | `session/request_permission` | A permission prompt carrying the emitted tool call, with one-shot allow/reject choices; your client can answer automatically. |
 
 Session listing and resume admit ordinary forks, including historical logs with `parentSession`; `origin: subagent` remains excluded.

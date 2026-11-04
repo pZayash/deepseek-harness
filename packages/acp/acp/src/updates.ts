@@ -8,8 +8,9 @@ import { errorChain, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-token-meter'
 // Side-effect type import: declaration-merges the optional `ctx.tools` service
-// read below. `ToolCallView` is the consumed tool-owned render intent.
-import type { FileLocation, ToolCallView } from '@deepseek-ai/dsh-tools'
+// read below. `ToolCallView`/`ToolResultView` are the consumed tool-owned
+// render intents.
+import type { FileLocation, ToolCallView, ToolResult, ToolResultView } from '@deepseek-ai/dsh-tools'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { assistantBlockToAcp } from './content.ts'
 
@@ -115,14 +116,26 @@ export function toolCallUpdate(
 }
 
 /**
- * Finish one generic ACP tool lifecycle from its committed model-facing result.
- * @param ctx - bridge context carrying the attachment store.
+ * Finish one ACP tool lifecycle from its committed model-facing result.
+ * The owning tool's pure `presentResult` render intent consumes the retained
+ * committed call identity, the result content, the failure flag, and persisted
+ * `meta`; a `diff` intent appends standard diff entries (persisted paths are
+ * already absolute, unlike the call-time projection) beside the converted
+ * content blocks, and every intent's title replaces the card title. An absent
+ * retained call, registry, definition, or intent, malformed call JSON, and a
+ * throwing presenter keep the raw-content projection.
+ * @param ctx - bridge context carrying the optional tool registry and attachments.
+ * @param agent - result-owning Agent; also its tool-registry viewing scope.
  * @param event - committed DSH tool-result event.
+ * @param call - the call's committed name and raw arguments, retained while it
+ *   was in flight; the result event carries neither.
  * @returns the standard completed or failed tool-call update.
  */
 export async function toolResultUpdate(
   ctx: Context,
+  agent: Agent,
   event: SessionEvent<'tool/result'>,
+  call: Pick<SessionEvent<'tool/call'>['data'], 'name' | 'arguments'> | undefined,
 ): Promise<SessionUpdate> {
   const message = event.data.message
   const content: ToolCallContent[] = []
@@ -130,10 +143,27 @@ export async function toolResultUpdate(
     const converted = await assistantBlockToAcp(ctx, block)
     if (converted !== undefined) content.push({ type: 'content' as const, content: converted })
   }
+  let view: ToolResultView | undefined
+  if (call !== undefined) {
+    const parsed = tryParseToolArguments(call.arguments)
+    if (parsed.ok) {
+      view = resultView(ctx, agent, call.name, parsed.args, {
+        content: [...message.content],
+        isError: message.isError === true,
+        ...event.data.meta === undefined ? {} : { meta: event.data.meta },
+      })
+    }
+  }
+  if (view?.card === 'diff') {
+    for (const diff of view.diffs) {
+      content.push({ type: 'diff', path: diff.path, oldText: diff.oldText, newText: diff.newText })
+    }
+  }
   return {
     sessionUpdate: 'tool_call_update',
     toolCallId: message.toolCallId,
     status: message.isError === true ? 'failed' : 'completed',
+    ...view?.title === undefined ? {} : { title: view.title },
     content,
   }
 }
@@ -161,6 +191,22 @@ function callView(ctx: Context, agent: Agent, name: string, args: unknown): Tool
     return ctx.get('tools')?.get(name, agent)?.presentCall?.(args)
   } catch (error: unknown) {
     ctx.logger.warn(`acp: tool "${name}" presentCall threw, using generic presentation: ${errorChain(error)}`)
+    return undefined
+  }
+}
+
+/** Resolve the tool-owned completed render intent; a throwing presenter degrades to raw content. */
+function resultView(
+  ctx: Context,
+  agent: Agent,
+  name: string,
+  args: unknown,
+  result: ToolResult,
+): ToolResultView | undefined {
+  try {
+    return ctx.get('tools')?.get(name, agent)?.presentResult?.(args, result)
+  } catch (error: unknown) {
+    ctx.logger.warn(`acp: tool "${name}" presentResult threw, using raw result content: ${errorChain(error)}`)
     return undefined
   }
 }

@@ -33,6 +33,13 @@ interface SubagentLifecycle {
   waitForTreeWork(root: Agent): Promise<boolean>
 }
 
+/** One in-flight call's emitted standard card plus its committed call identity. */
+interface InflightToolCall {
+  call: ToolCall
+  name: string
+  arguments: string
+}
+
 /** Inputs shared by fresh and resumed ACP session construction. */
 interface AcpSessionBuildOptions {
   cwd: string
@@ -99,8 +106,12 @@ export class AcpSession {
   readonly agent: Agent
   private readonly modeControl: AcpModeControl | undefined
   private readonly modelControl: AcpModelControl
-  /** Standard tool-call projections of in-flight calls, keyed by durable call id. */
-  private readonly toolCalls = new Map<string, ToolCall>()
+  /**
+   * Emitted standard cards and committed call identities of in-flight calls,
+   * keyed by durable call id. The identity (name and raw arguments) feeds the
+   * result-time render intent, which `tool/result` events do not carry.
+   */
+  private readonly toolCalls = new Map<string, InflightToolCall>()
   private outputTail = Promise.resolve()
   private inflight: InflightPrompt | undefined
   private closing: Promise<void> | undefined
@@ -368,7 +379,7 @@ export class AcpSession {
         // approval, whose observers run synchronously, so the permission
         // request always finds this projection.
         const call = toolCallUpdate(this.ctx, this.agent, event)
-        this.toolCalls.set(call.toolCallId, call)
+        this.toolCalls.set(call.toolCallId, { call, name: event.data.name, arguments: event.data.arguments })
         const previous = this.outputTail
         this.outputTail = previous
           .then(() => this.notify({ sessionId: this.agent.session.id, update: { sessionUpdate: 'tool_call', ...call } }))
@@ -378,12 +389,13 @@ export class AcpSession {
           })
         /* v8 ignore stop */
       } else if (event.type === 'tool/result') {
+        const retained = this.toolCalls.get(event.data.message.toolCallId)
         this.toolCalls.delete(event.data.message.toolCallId)
         const previous = this.outputTail
         this.outputTail = previous
           .then(async () => this.notify({
             sessionId: this.agent.session.id,
-            update: await toolResultUpdate(this.ctx, event),
+            update: await toolResultUpdate(this.ctx, this.agent, event, retained),
           }))
           /* v8 ignore start -- supplemental-content conversion failure is contained and cannot fail Agent work. */
           .catch((error: unknown) => {
@@ -449,7 +461,7 @@ export class AcpSession {
    * @returns the emitted tool-call fields, or undefined after its lifecycle ends.
    */
   pendingToolCall(callId: string): ToolCall | undefined {
-    return this.toolCalls.get(callId)
+    return this.toolCalls.get(callId)?.call
   }
 
   /**

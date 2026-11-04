@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { resolve } from 'node:path'
-import { ToolCallId, MessageId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, MessageId, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionSeq, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
-import type { ToolDefinition, ToolCallView } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from '../src/updates.ts'
 
 /** Minimal committed assistant event for pure update projection tests. */
@@ -42,6 +43,32 @@ function toolCallEvent(name: string, args: string): SessionEvent<'tool/call'> {
   }
 }
 
+/** Minimal committed tool-result event; meta stays the persisted presentation payload. */
+function toolResultEvent(
+  content: ContentBlock[],
+  options: { isError?: boolean; meta?: JsonValue } = {},
+): SessionEvent<'tool/result'> {
+  return {
+    type: 'tool/result',
+    surfaceOp: 'append',
+    seq: SessionSeq(0),
+    time: 0,
+    data: {
+      turn: 1,
+      step: 1,
+      message: {
+        id: MessageId('tool-message'),
+        role: 'tool',
+        toolCallId: ToolCallId('call-1'),
+        source: { kind: 'tool', callId: ToolCallId('call-1') },
+        content,
+        ...options.isError === true ? { isError: true } : {},
+      },
+      ...options.meta === undefined ? {} : { meta: options.meta },
+    },
+  }
+}
+
 /** Agent stub carrying only the session workspace the projection resolves against. */
 function agentWithCwd(cwd?: string): Agent {
   return { session: { header: { cwd } } } as unknown as Agent
@@ -56,6 +83,11 @@ function ctxWithTools(definitions?: ReadonlyMap<string, ToolDefinition>): Contex
 /** Definition stub whose surface is only the declared render intent. */
 function presenter(view: ToolCallView): { presentCall: ReturnType<typeof vi.fn> } {
   return { presentCall: vi.fn(() => view) }
+}
+
+/** Definition stub whose surface is only the declared completed render intent. */
+function resultPresenter(view: ToolResultView | undefined): { presentResult: ReturnType<typeof vi.fn> } {
+  return { presentResult: vi.fn(() => view) }
 }
 
 /** A platform-absolute workspace anchor for the expected-path assertions. */
@@ -233,30 +265,105 @@ describe('standard ACP update projection', () => {
   })
 
   it('preserves malformed tool input and projects a failed result without hidden content', async () => {
-    const result = await toolResultUpdate({ get: () => undefined } as unknown as Context, {
-      type: 'tool/result',
-      surfaceOp: 'append',
-      seq: SessionSeq(0),
-      time: 0,
-      data: {
-        turn: 1,
-        step: 1,
-        message: {
-          id: MessageId('tool-message'),
-          role: 'tool',
-          toolCallId: ToolCallId('call-bad'),
-          isError: true,
-          source: { kind: 'tool', callId: ToolCallId('call-bad') },
-          content: [{ type: 'reasoning', text: 'hidden' }],
-        },
-      },
-    })
+    const result = await toolResultUpdate(
+      { get: () => undefined } as unknown as Context,
+      AGENT,
+      toolResultEvent([{ type: 'reasoning', text: 'hidden' }], { isError: true }),
+      { name: 'broken', arguments: '{' },
+    )
 
     expect(result).toEqual({
       sessionUpdate: 'tool_call_update',
-      toolCallId: 'call-bad',
+      toolCallId: 'call-1',
       status: 'failed',
       content: [],
     })
+  })
+
+  it('appends result-time diff entries beside converted content and carries the intent title', async () => {
+    const meta = { diffs: [{ path: '/abs/foo.txt', oldText: 'a\nb', newText: 'a\nc' }] }
+    const tool = resultPresenter({ card: 'diff', title: 'Edit foo.txt', diffs: meta.diffs })
+    const ctx = ctxWithTools(new Map([['edit', tool as unknown as ToolDefinition]]))
+    const event = toolResultEvent([{ type: 'text', text: 'applied' }], { meta })
+
+    const result = await toolResultUpdate(ctx, AGENT, event, {
+      name: 'edit',
+      arguments: '{"file_path":"foo.txt"}',
+    })
+
+    expect(tool.presentResult).toHaveBeenCalledWith(
+      { file_path: 'foo.txt' },
+      { content: [{ type: 'text', text: 'applied' }], isError: false, meta },
+    )
+    expect(result).toEqual({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call-1',
+      status: 'completed',
+      title: 'Edit foo.txt',
+      content: [
+        { type: 'content', content: { type: 'text', text: 'applied' } },
+        { type: 'diff', path: '/abs/foo.txt', oldText: 'a\nb', newText: 'a\nc' },
+      ],
+    })
+  })
+
+  it('carries a non-diff intent title without inventing content', async () => {
+    const titled = resultPresenter({ card: 'generic', title: 'Read foo.txt' })
+    const bare = resultPresenter({ card: 'terminal', output: 'out\n' })
+    const titledCtx = ctxWithTools(new Map([['read', titled as unknown as ToolDefinition]]))
+    const bareCtx = ctxWithTools(new Map([['bash', bare as unknown as ToolDefinition]]))
+    const event = toolResultEvent([{ type: 'text', text: 'out' }])
+    const call = { name: 'read', arguments: '{}' }
+
+    expect(await toolResultUpdate(titledCtx, AGENT, event, call)).toEqual({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call-1',
+      status: 'completed',
+      title: 'Read foo.txt',
+      content: [{ type: 'content', content: { type: 'text', text: 'out' } }],
+    })
+    expect(await toolResultUpdate(bareCtx, AGENT, event, { name: 'bash', arguments: '{}' })).toEqual({
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call-1',
+      status: 'completed',
+      content: [{ type: 'content', content: { type: 'text', text: 'out' } }],
+    })
+  })
+
+  it('keeps raw content without a retained call, registry, intent, or parsed arguments', async () => {
+    const tool = resultPresenter({ card: 'diff', title: 'unused', diffs: [] })
+    const withTool = ctxWithTools(new Map([['edit', tool as unknown as ToolDefinition]]))
+    const event = toolResultEvent([{ type: 'text', text: 'raw' }])
+    const expected = {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call-1',
+      status: 'completed',
+      content: [{ type: 'content', content: { type: 'text', text: 'raw' } }],
+    }
+
+    expect(await toolResultUpdate(withTool, AGENT, event, undefined)).toEqual(expected)
+    expect(await toolResultUpdate(ctxWithTools(undefined), AGENT, event, { name: 'edit', arguments: '{}' }))
+      .toEqual(expected)
+    expect(await toolResultUpdate(withTool, AGENT, event, { name: 'edit', arguments: '{' }))
+      .toEqual(expected)
+    expect(tool.presentResult).not.toHaveBeenCalled()
+  })
+
+  it('keeps raw content when the intent is absent or the presenter throws', async () => {
+    const absent = resultPresenter(undefined)
+    const throwing = { presentResult: vi.fn(() => { throw new Error('bad intent') }) }
+    const absentCtx = ctxWithTools(new Map([['edit', absent as unknown as ToolDefinition]]))
+    const throwingCtx = ctxWithTools(new Map([['edit', throwing as unknown as ToolDefinition]]))
+    const event = toolResultEvent([{ type: 'text', text: 'raw' }])
+    const call = { name: 'edit', arguments: '{}' }
+    const expected = {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'call-1',
+      status: 'completed',
+      content: [{ type: 'content', content: { type: 'text', text: 'raw' } }],
+    }
+
+    expect(await toolResultUpdate(absentCtx, AGENT, event, call)).toEqual(expected)
+    expect(await toolResultUpdate(throwingCtx, AGENT, event, call)).toEqual(expected)
   })
 })
