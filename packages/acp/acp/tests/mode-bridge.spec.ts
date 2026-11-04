@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import type { PermissionCatalog, PresetOption } from '@deepseek-ai/dsh-permission-presets'
 import type { Session } from '@deepseek-ai/dsh-session'
@@ -66,5 +66,17 @@ describe('ACP mode configuration over the bridge', () => {
       configId: 'mode',
       value: 'missing',
     })).rejects.toThrow(/unknown mode: missing/)
+
+    const selected = await harness.client.setSessionConfigOption({
+      sessionId: created.sessionId,
+      configId: 'reasoning_effort',
+      value: 'low',
+    })
+    expect(selected.configOptions.find(option => option.id === 'mode')?.currentValue).toBe('danger-full-access')
+
+    harness.ctx.emit('permission-presets/catalog-changed')
+    await vi.waitFor(() => {
+      expect(harness!.updates.some(update => update.sessionUpdate === 'config_option_update')).toBe(true)
+    })
   })
 })

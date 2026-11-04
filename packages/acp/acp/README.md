@@ -29,7 +29,7 @@ Use this package when a script, test runner, or another harness needs to run age
 
 ### When to choose it
 
-Choose it when automation should own the interaction: an out-of-process subagent, test runner, or scripted controller that manages persistent sessions, tools, model selection, and permissions. Avoid it when a human needs DSH-specific presentation cards, plans, titles, todos, terminal views, or elicitation; this server intentionally exposes only the standard ACP v1 surface.
+Choose it when automation should own the interaction: an out-of-process subagent, test runner, or scripted controller that manages persistent sessions, tools, model selection, and permissions. Avoid it when a human needs DSH-specific presentation, plans, todos, terminal views, or elicitation; this server intentionally exposes only the standard ACP v1 surface.
 
 ### Minimal configuration
 
@@ -70,8 +70,8 @@ One connection can run several sessions at once, each independent. The calls a c
 | `session/set_config_option` | A serialized update to the advertised `model`, `reasoning_effort`, or `mode`, returning the complete resulting state. |
 | `session/prompt` | Ordered text, resource links, and supported images, one prompt at a time per session; settlement follows root and descendant completion plus ordered update delivery. |
 | `session/cancel` / `$/cancel_request` | The prompt-owned cancellation path; without an ACP prompt in flight it cancels autonomous work, while unknown session ids are no-ops. |
-| `session/update` | Committed assistant messages and thoughts, generic tool lifecycle, configuration changes, and context usage, serialized per session. |
-| `session/request_permission` | A permission prompt with one-shot allow/reject choices; your client can answer automatically. |
+| `session/update` | Committed assistant messages and thoughts, tool lifecycle with standard kind, title, locations, call-time diffs, and authored content, configuration changes, and context usage, serialized per session. |
+| `session/request_permission` | A permission prompt carrying the emitted tool call, with one-shot allow/reject choices; your client can answer automatically. |
 
 Session listing and resume admit ordinary forks, including historical logs with `parentSession`; `origin: subagent` remains excluded.
 
@@ -95,7 +95,7 @@ This section explains how the server realizes the behavior above and points at t
 
 The server is an automation transport with an intentionally standard public protocol. Three commitments shape it:
 
-- **Standard semantic updates only.** The wire carries committed messages and thoughts, generic tool lifecycle, configuration, and context usage; raw provider deltas, retry attempts, DSH presentation data, and unsupported content stay off the wire.
+- **Standard semantic updates only.** The wire carries committed messages and thoughts, tool lifecycle with standard presentation fields derived from the tool-owned render intents, configuration, and context usage; raw provider deltas, retry attempts, DSH-private presentation data, and unsupported content stay off the wire.
 - **Truthful capability and configuration state.** `initialize` advertises only mounted support, topology changes publish complete configuration options, and a prompt pins the exact route it admitted.
 - **Quiescence before settlement.** Prompt and close operations settle only after their owned admission, Agent activity, ordered updates, descendants, persistence, and disposal have reached the required terminal state.
 

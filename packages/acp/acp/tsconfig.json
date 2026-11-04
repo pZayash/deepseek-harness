@@ -43,6 +43,12 @@
     },
     {
       "path": "../../interaction/user-approval"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../util/values"
     }
   ]
 }

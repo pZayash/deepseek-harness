@@ -3,8 +3,9 @@
  *
  * The bridge exposes persistent harness sessions to trusted programmatic
  * clients. It carries standard configuration, MCP mounts, prompt content,
- * committed semantic updates, cancellation, and one-shot permission decisions;
- * presentation and human-interaction features stay with the harness's UI modules.
+ * committed semantic updates with standard presentation fields, cancellation,
+ * and one-shot permission decisions; DSH-private presentation and
+ * human-interaction features stay with the harness's UI modules.
  *
  * @module @deepseek-ai/dsh-acp
  */
@@ -12,10 +13,13 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Buffer } from 'node:buffer'
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { realpath } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { Readable, Writable } from 'node:stream'
+import { fileURLToPath } from 'node:url'
 import Schema from '@deepseek-ai/schemastery'
+import semver from 'semver'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { errorChain } from '@deepseek-ai/dsh-llm'
 import {
@@ -74,6 +78,25 @@ function internalError(detail: string): RequestError {
   return RequestError.internalError(undefined, detail)
 }
 
+/**
+ * Read this package's version in both source and bundled installations.
+ * `../package.json` resolves the package root from both `src/` and `lib/`.
+ * @returns the validated semantic version, preserving its exact spelling.
+ * @throws if package.json cannot be read or its version is missing or invalid.
+ */
+function acpVersion(): string {
+  // The executable's virtual filesystem intercepts string paths, not URL arguments.
+  const filename = fileURLToPath(new URL('../package.json', import.meta.url))
+  const manifest = JSON.parse(readFileSync(filename, 'utf8')) as { version?: unknown }
+  const version = manifest.version
+  /* v8 ignore start -- a missing or invalid version is a build-artifact defect no test can produce. */
+  if (typeof version !== 'string' || semver.valid(version) === null) {
+    throw new Error(`invalid @deepseek-ai/dsh-acp package version: ${JSON.stringify(version)}`)
+  }
+  /* v8 ignore stop */
+  return version
+}
+
 /** Plugin config: the provider/model selection used for each ACP-created agent. */
 export interface AcpConfig {
   /** Provider route for created agents. */
@@ -102,6 +125,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
   // injected service during apply rather than reading it lazily in a callback.
   const persistence = ctx.sessionPersistence
   const logger = ctx.logger
+  const agentVersion = acpVersion()
   const sessionListPageSize = resolveSessionListPageSize(config.sessionListPageSize)
   const sessions = new Map<SessionId, AcpSession>()
   const activating = new Set<SessionId>()
@@ -175,7 +199,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     return record.drainUpdates().then(() => {
       const params: RequestPermissionRequest = {
         sessionId: record.agent.session.id,
-        toolCall: { toolCallId: callId },
+        toolCall: record.pendingToolCall(callId) ?? { toolCallId: callId },
         options: [
           { optionId: 'allow-once', name: 'Allow once', kind: 'allow_once' },
           { optionId: 'reject-once', name: 'Reject', kind: 'reject_once' },
@@ -195,7 +219,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
       imagePromptEnabled = await supportsAcpImagePrompts(ctx, config.provider, config.model)
       return {
         protocolVersion: PROTOCOL_VERSION,
-        agentInfo: { name: 'deepseek-harness-acp', version: '0.0.1' },
+        agentInfo: { name: 'deepseek-harness-acp', version: agentVersion },
         agentCapabilities: {
           mcpCapabilities: { http: true },
           promptCapabilities: { image: imagePromptEnabled, audio: false, embeddedContext: false },

@@ -251,6 +251,7 @@ export class HarnessSdkJsonRpcServer {
     this.userQuestions.enabled = params.capabilities?.userQuestions === true
     this.initialized = true
     this.initialization.resolve()
+    // TODO: report the package version from package.json like @deepseek-ai/dsh-acp does.
     return { serverInfo: { name: 'deepseek-harness-sdk-runtime', version: '0.0.1' } }
   }
 

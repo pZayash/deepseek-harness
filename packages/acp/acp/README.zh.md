@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-当自动化应拥有交互时选择它：管理持久会话、工具、模型选择与权限的进程外 subagent、测试运行器或脚本化控制器。当人类需要 DSH 专用呈现卡片、计划、标题、todo、终端视图或 elicitation 时请避开；本服务器刻意只提供标准 ACP v1 界面。
+当自动化应拥有交互时选择它：管理持久会话、工具、模型选择与权限的进程外 subagent、测试运行器或脚本化控制器。当人类需要 DSH 专用呈现、计划、todo、终端视图或 elicitation 时请避开；本服务器刻意只提供标准 ACP v1 界面。
 
 ### 最小配置
 
@@ -70,8 +70,8 @@ kind: "package-reference"
 | `session/set_config_option` | 串行更新公布的 `model` 或 `reasoning_effort`，并返回完整结果状态。 |
 | `session/prompt` | 有序文本、资源链接与受支持图片，每个会话一次一个提示词；根 Agent 与后代完成且有序更新交付后才结算。 |
 | `session/cancel` / `$/cancel_request` | 提示词所拥有的取消路径；没有进行中的 ACP 提示词时取消自主工作，未知会话 id 则为空操作。 |
-| `session/update` | 已提交 assistant 消息与 thought、通用工具生命周期、配置变化与上下文用量，按会话串行交付。 |
-| `session/request_permission` | 带一次性允许／拒绝选项的权限提示；你的客户端可以自动回答。 |
+| `session/update` | 已提交 assistant 消息与 thought、带标准 kind、title、locations、调用时 diff 和撰写内容的工具生命周期、配置变化与上下文用量，按会话串行交付。 |
+| `session/request_permission` | 携带已发出工具调用的权限提示，带一次性允许／拒绝选项；你的客户端可以自动回答。 |
 
 会话列表和恢复允许普通 fork，包括含有 `parentSession` 的历史日志；`origin: subagent` 仍被排除。
 
@@ -95,7 +95,7 @@ kind: "package-reference"
 
 服务器是刻意采用标准公开协议的自动化传输。三项承诺塑造了它：
 
-- **只发送标准语义更新。** 协议承载已提交消息与 thought、通用工具生命周期、配置与上下文用量；原始提供方增量、重试尝试、DSH 呈现数据与不受支持内容不会进入协议。
+- **只发送标准语义更新。** 协议承载已提交消息与 thought、经工具自有 render intent 派生的标准展示字段的工具生命周期、配置与上下文用量；原始提供方增量、重试尝试、DSH 私有呈现数据与不受支持内容不会进入协议。
 - **诚实的能力与配置状态。** `initialize` 只公布已挂载支持，拓扑变化会发布完整配置选项，提示词则固定其准入时的确切路由。
 - **停稳后才结算。** 提示词与关闭操作只在其拥有的准入、Agent 活动、有序更新、后代、持久化与释放达到所需终态后才结算。
 

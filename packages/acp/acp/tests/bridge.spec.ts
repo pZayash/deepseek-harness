@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { mkdtemp, rm } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -46,9 +47,12 @@ describe('automation-only ACP bridge', () => {
       clientCapabilities: { _meta: { terminal_output: true } },
     })
 
+    const { version } = JSON.parse(
+      readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'),
+    ) as { version: string }
     expect(response).toEqual({
       protocolVersion: PROTOCOL_VERSION,
-      agentInfo: { name: 'deepseek-harness-acp', version: '0.0.1' },
+      agentInfo: { name: 'deepseek-harness-acp', version },
       agentCapabilities: {
         mcpCapabilities: { http: true },
         promptCapabilities: { image: false, audio: false, embeddedContext: false },

@@ -9,6 +9,7 @@ import {
   type SessionConfigOption,
   type SessionNotification,
   type StopReason,
+  type ToolCall,
 } from '@agentclientprotocol/sdk'
 import type { Agent, AgentHandle, AgentOptions, AgentStatus } from '@deepseek-ai/dsh-agent'
 import { installModelSelection } from '@deepseek-ai/dsh-agent'
@@ -98,6 +99,8 @@ export class AcpSession {
   readonly agent: Agent
   private readonly modeControl: AcpModeControl | undefined
   private readonly modelControl: AcpModelControl
+  /** Standard tool-call projections of in-flight calls, keyed by durable call id. */
+  private readonly toolCalls = new Map<string, ToolCall>()
   private outputTail = Promise.resolve()
   private inflight: InflightPrompt | undefined
   private closing: Promise<void> | undefined
@@ -361,15 +364,21 @@ export class AcpSession {
           this.ctx.logger.warn(`acp: assistant output conversion failed: ${errorChain(error)}`)
         })
       } else if (event.type === 'tool/call') {
+        // Fill synchronously: the committed call precedes pipeline prepare and
+        // approval, whose observers run synchronously, so the permission
+        // request always finds this projection.
+        const call = toolCallUpdate(this.ctx, this.agent, event)
+        this.toolCalls.set(call.toolCallId, call)
         const previous = this.outputTail
         this.outputTail = previous
-          .then(() => this.notify({ sessionId: this.agent.session.id, update: toolCallUpdate(event) }))
+          .then(() => this.notify({ sessionId: this.agent.session.id, update: { sessionUpdate: 'tool_call', ...call } }))
           /* v8 ignore start -- the bridge notifier contains transport rejection. */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-call update delivery failed: ${errorChain(error)}`)
           })
         /* v8 ignore stop */
       } else if (event.type === 'tool/result') {
+        this.toolCalls.delete(event.data.message.toolCallId)
         const previous = this.outputTail
         this.outputTail = previous
           .then(async () => this.notify({
@@ -381,6 +390,10 @@ export class AcpSession {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
           })
         /* v8 ignore stop */
+      } else if (event.type === 'turn/end') {
+        // An aborted call commits no result; the turn boundary retires every
+        // remaining in-flight projection.
+        this.toolCalls.clear()
       }
     } finally {
       const inflight = this.inflight
@@ -428,6 +441,15 @@ export class AcpSession {
   /** Await every update queued before this call. */
   drainUpdates(): Promise<void> {
     return this.outputTail
+  }
+
+  /**
+   * The stored standard projection of one in-flight call.
+   * @param callId - durable call identity carried by an approval request.
+   * @returns the emitted tool-call fields, or undefined after its lifecycle ends.
+   */
+  pendingToolCall(callId: string): ToolCall | undefined {
+    return this.toolCalls.get(callId)
   }
 
   /**

@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-04-acp-standard-presentation-vocabulary.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-04-acp-standard-presentation-vocabulary.md
+/agent-note-standard-acp-vocabulary-from-committed-render-intents:
+  en: 9b0bf98117612383
+  zh: df004b3c1ac422ce
+/agent-note-standard-acp-vocabulary-from-committed-render-intents/problem:
+  en: b6d60498d5d7733a
+  zh: 576bbb0cd2631576
+/agent-note-standard-acp-vocabulary-from-committed-render-intents/decision:
+  en: 65420ad9d6516a81
+  zh: 84f9ec307f785d90
+/agent-note-standard-acp-vocabulary-from-committed-render-intents/alternatives-considered:
+  en: be3c874d18fdbeb7
+  zh: d2c989d17302b9fb
+/agent-note-standard-acp-vocabulary-from-committed-render-intents/consequences:
+  en: b9f9e8f1d07081e5
+  zh: 78ba7bfaaa9f8696
