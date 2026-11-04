@@ -29,7 +29,7 @@ kind: "package-reference"
 
 ### 何时选择
 
-当自动化应拥有交互时选择它：管理持久会话、工具、模型选择与权限的进程外 subagent、测试运行器或脚本化控制器。当人类需要 DSH 专用呈现、计划、todo、终端视图或 elicitation 时请避开；本服务器刻意只提供标准 ACP v1 界面。
+当自动化应拥有交互时选择它：管理持久会话、工具、模型选择与权限的进程外 subagent、测试运行器或脚本化控制器。当人类需要 DSH 专用呈现、终端视图或 elicitation 时请避开；本服务器刻意只提供标准 ACP v1 界面。
 
 ### 最小配置
 
@@ -67,11 +67,13 @@ kind: "package-reference"
 | `session/list` | 按确定的新到旧顺序分页返回已持久化、可恢复的根会话；可选绝对 `cwd` 筛选会尽可能使用物理目录标识。 |
 | `session/resume` | 恢复一个已持久化且非活跃的会话；组合前校验其规范工作区，并恢复日志但不回放旧更新。 |
 | `session/close` | 停稳式取消、更新 drain、后代释放、持久化 flush，并且只释放指定 Agent 作用域。 |
-| `session/set_config_option` | 串行更新公布的 `model` 或 `reasoning_effort`，并返回完整结果状态。 |
+| `session/set_config_option` | 串行更新公布的 `model`、`reasoning_effort` 或 `mode`，并返回完整结果状态。 |
 | `session/prompt` | 有序文本、资源链接与受支持图片，每个会话一次一个提示词；根 Agent 与后代完成且有序更新交付后才结算。 |
 | `session/cancel` / `$/cancel_request` | 提示词所拥有的取消路径；没有进行中的 ACP 提示词时取消自主工作，未知会话 id 则为空操作。 |
-| `session/update` | 已提交 assistant 消息与 thought、带标准 kind、title、locations、调用时与结果时 diff 和撰写内容的工具生命周期、配置变化与上下文用量，按会话串行交付。 |
-| `session/request_permission` | 携带已发出工具调用的权限提示，带一次性允许／拒绝选项；你的客户端可以自动回答。 |
+| `session/update` | 已提交 assistant 消息与 thought、带标准 kind、title、locations、调用时与结果时 diff 和撰写内容的工具生命周期、来自已提交 todo 列表的 `plan` 整体替换更新、配置变化与上下文用量，按会话串行交付。 |
+| `session/request_permission` | 携带已发出工具调用的权限提示，带固定顺序的一次性允许／拒绝选项——选项顺序是供自动应答客户端遵循的 wire 约定，每次授权只覆盖该次调用。 |
+
+每条更新都由已提交会话事实派生；未提交的内容不会到达客户端，因此客户端无需撤回部分输出。`plan` 更新整体替换计划：每次提交的 todo 列表重写都成为完整的 `entries` 数组，下一个轮次会清空本会话已发出的 plan。
 
 会话列表和恢复允许普通 fork，包括含有 `parentSession` 的历史日志；`origin: subagent` 仍被排除。
 
@@ -79,7 +81,7 @@ kind: "package-reference"
 
 即使前一轮已经完成，追加 `turn/start` 或 `turn/end` 失败仍会使提示词请求失败。
 
-会话配置从实时 LLM（大语言模型）服务目录提供不透明的提供方／模型选项，并在确切模型声明推理选项时提供 `reasoning_effort`。选项变更记录 Session 选择，从下一个模型步骤开始生效，包括当前轮次的后续步骤；已准备的步骤及其重试保留捕获的选择。图片准入检查准入开始时的当前选择。恢复会还原记录中的选择，即使尚未有请求使用它。ACP 客户端是受信控制器：stdio MCP 条目授权其绝对命令与环境，HTTP 条目授权其绝对 HTTP(S) URL 与 header；初始连接或发现失败会回滚尚未发布的 Agent。不支持的界面会被省略或拒绝：`session/load`、删除、fork、附加目录、SSE（Server-Sent Events）或 ACP 传输 MCP、mode、命令、计划、终端、客户端文件系统操作与 elicitation。
+会话配置从实时 LLM（大语言模型）服务目录提供不透明的提供方／模型选项，并在确切模型声明推理选项时提供 `reasoning_effort`。当组合挂载权限预设时，`mode` 选择器会公布其目录——随附表提供 `read-only`、`workspace-write` 与 `danger-full-access`——切换它会立即写入随附的 sandbox mode 与审批策略。这些预设是软边界：被 sandbox 拒绝的工具可以用 `sandbox_permissions` 加 `justification` 重试该调用，这会以普通权限提示的形式到达——客户端的回答是唯一屏障。选项变更记录 Session 选择，从下一个模型步骤开始生效，包括当前轮次的后续步骤；已准备的步骤及其重试保留捕获的选择。图片准入检查准入开始时的当前选择。恢复会还原记录中的选择，即使尚未有请求使用它。ACP 客户端是受信控制器：stdio MCP 条目授权其绝对命令与环境，HTTP 条目授权其绝对 HTTP(S) URL 与 header；初始连接或发现失败会回滚尚未发布的 Agent。不支持的界面会被省略或拒绝：`session/load`、删除、fork、附加目录、SSE（Server-Sent Events）或 ACP 传输 MCP、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation。
 
 -----
 
@@ -95,7 +97,7 @@ kind: "package-reference"
 
 服务器是刻意采用标准公开协议的自动化传输。三项承诺塑造了它：
 
-- **只发送标准语义更新。** 协议承载已提交消息与 thought、经工具自有 render intent 派生的标准展示字段的工具生命周期、配置与上下文用量；原始提供方增量、重试尝试、DSH 私有呈现数据与不受支持内容不会进入协议。
+- **只发送标准语义更新。** 协议承载已提交消息与 thought、经工具自有 render intent 派生的标准展示字段的工具生命周期、来自已提交 todo 列表的整体替换 plan、配置与上下文用量；原始提供方增量、重试尝试、未提交输出、DSH 私有呈现数据与不受支持内容不会进入协议。
 - **诚实的能力与配置状态。** `initialize` 只公布已挂载支持，拓扑变化会发布完整配置选项，提示词则固定其准入时的确切路由。
 - **停稳后才结算。** 提示词与关闭操作只在其拥有的准入、Agent 活动、有序更新、后代、持久化与释放达到所需终态后才结算。
 
@@ -174,7 +176,7 @@ kind: "package-reference"
 - **仅一个主 workspace**——附加目录仍不支持。
 - **仅光栅提示词图片**——PNG、JPEG、WebP 与 GIF 要求持久附件存储及确切的图片能力路由。
 - **仅 MCP 工具**——MCP resource 与 prompt 没有 DSH 消费方。
-- **没有 transcript 回放或交互式扩展**——会话删除、fork、`session/load`、mode、命令、计划、终端、客户端文件系统操作与 elicitation 仍不属于此自动化界面。
+- **没有 transcript 回放或交互式扩展**——会话删除、fork、`session/load`、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation 仍不属于此自动化界面。
 
 <a id="dev-note"></a>
 ### 开发备注

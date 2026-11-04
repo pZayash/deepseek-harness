@@ -6,7 +6,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionSeq, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-import { assistantUpdates, toolCallUpdate, toolResultUpdate } from '../src/updates.ts'
+import { assistantUpdates, planUpdate, toolCallUpdate, toolResultUpdate } from '../src/updates.ts'
 
 /** Minimal committed assistant event for pure update projection tests. */
 function assistantEvent(
@@ -66,6 +66,16 @@ function toolResultEvent(
       },
       ...options.meta === undefined ? {} : { meta: options.meta },
     },
+  }
+}
+
+/** Minimal committed whole-list todo snapshot for plan projection tests. */
+function todoWriteEvent(todos: SessionEvent<'todo/write'>['data']['todos']): SessionEvent<'todo/write'> {
+  return {
+    type: 'todo/write',
+    seq: SessionSeq(0),
+    time: 0,
+    data: { todos },
   }
 }
 
@@ -262,6 +272,22 @@ describe('standard ACP update projection', () => {
       kind: 'other',
       rawInput: {},
     })
+  })
+
+  it('projects the committed todo snapshot as a replacement plan', () => {
+    expect(planUpdate(todoWriteEvent([
+      { content: 'draft the change', status: 'completed' },
+      { content: 'run the tests', status: 'in_progress' },
+      { content: 'open the pull request', status: 'pending' },
+    ]))).toEqual({
+      sessionUpdate: 'plan',
+      entries: [
+        { content: 'draft the change', status: 'completed', priority: 'medium' },
+        { content: 'run the tests', status: 'in_progress', priority: 'medium' },
+        { content: 'open the pull request', status: 'pending', priority: 'medium' },
+      ],
+    })
+    expect(planUpdate(todoWriteEvent([]))).toEqual({ sessionUpdate: 'plan', entries: [] })
   })
 
   it('preserves malformed tool input and projects a failed result without hidden content', async () => {

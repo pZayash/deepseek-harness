@@ -76,6 +76,8 @@ class ControlSurfaceAdapter extends LlmAdapter {
       yield { type: 'finish', reason: { kind: 'tool-calls' } }
       return
     }
+    // A cancelled prompt never reaches the plan step; the waiting branch must
+    // win before the generic todo_write follow-up.
     if (userText.includes('cancel')) {
       yield { type: 'block-start', index: 0, blockType: 'text' }
       yield { type: 'text-delta', index: 0, text: 'waiting' }
@@ -86,6 +88,28 @@ class ControlSurfaceAdapter extends LlmAdapter {
         }
         options.signal?.addEventListener('abort', () => { reject(new Error('cancelled')) }, { once: true })
       })
+      return
+    }
+    if (!current.some(message => message.role === 'tool' && message.toolCallId === 'control-todo')) {
+      yield { type: 'block-start', index: 0, blockType: 'tool-call' }
+      yield {
+        type: 'tool-call-delta',
+        index: 0,
+        id: ToolCallId('control-todo'),
+        name: 'todo_write',
+        argumentsDelta: '{"todos":[{"content":"exercise the attached server","status":"in_progress"}]}',
+      }
+      yield {
+        type: 'block-end',
+        index: 0,
+        block: {
+          type: 'tool-call',
+          id: ToolCallId('control-todo'),
+          name: 'todo_write',
+          arguments: '{"todos":[{"content":"exercise the attached server","status":"in_progress"}]}',
+        },
+      }
+      yield { type: 'finish', reason: { kind: 'tool-calls' } }
       return
     }
     const text = `model=${options.model}; tool=5`

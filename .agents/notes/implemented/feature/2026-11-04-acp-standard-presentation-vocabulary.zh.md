@@ -18,6 +18,8 @@ Status: implemented
 
 `toolResultUpdate(ctx, agent, event, call)` 把同一 seam 应用到完成态：保留的已提交名称和原始参数——`tool/result` 事件两者都不携带——用于解析 `ctx.get('tools')?.get(name, agent)?.presentResult(args, {content, isError, meta})`，其中 `meta` 是事件上持久化的展示载荷。`diff` 意图在已转换内容块旁追加 `{type:'diff'}` 条目；持久化的 diff 路径已是绝对路径，因此结果时投影无需 cwd 解析。每个意图的 `title` 替换卡片标题；其他卡片种类保留原始内容投影。缺少保留调用、注册表、定义或意图、调用 JSON 畸形，以及 presenter 抛错时，一律保留原始内容投影。
 
+`todo/write` 提交的是整表快照，因此它的投影就是标准 `plan` 更新：把已提交的 `TodoItem` 逐条映射成完整替换用的 `entries` 列表——`content` 和共享的三态 `status` 原样透传，而 `priority` 是协议必填但无提交来源的字段，固定为 `'medium'`。`turn/start` 只在本会话已发出过 plan 之后才发出清空的 `plan`，与 `todos` 投影自身的轮次边界折叠一致；从不写 todo 列表的组合不会发出任何 plan。
+
 `initialize` 通过 `fileURLToPath` 从相对 `import.meta.url` 的 `../package.json` 读取 `agentInfo.version`——可执行文件的虚拟文件系统只拦截字符串路径，不拦截 URL 参数——并按语义化版本校验；版本不可读或非法时插件加载失败。`../package.json` 在 `src/` 与 `lib/` 下都能解析到包根。
 
 `@deepseek-ai/dsh-tools` 是可选 peer 依赖：没有注册表的组装保留通用卡片，与 `permissionPresets`／`tokenMeter` 的可选服务模式一致。
@@ -36,4 +38,4 @@ Status: implemented
 
 ## 结果
 
-图形客户端可以渲染有意义的工具卡片与权限提示，支持文件跟随和调用时与结果时 diff；自动化消费者只收到严格叠加的字段。桥接层成为工具 render-intent seam 的可选消费者，每个会话只保留一个有界的在途调用投影与身份映射。调用时 diff 由调用参数派生，因此新建的 `oldText` 为 `null`；结果时 diff 由持久化的已应用变更元数据派生。更丰富的结果内容、计划更新和 terminal 卡片仍不进入 wire。
+图形客户端可以渲染有意义的工具卡片与权限提示，支持文件跟随和调用时与结果时 diff；自动化消费者只收到严格叠加的字段。桥接层成为工具 render-intent seam 的可选消费者，每个会话只保留一个有界的在途调用投影与身份映射。调用时 diff 由调用参数派生，因此新建的 `oldText` 为 `null`；结果时 diff 由持久化的已应用变更元数据派生。更丰富的结果内容和 terminal 卡片仍不进入 wire。

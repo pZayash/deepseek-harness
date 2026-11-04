@@ -7,6 +7,10 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { errorChain, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-token-meter'
+// Side-effect type import: declaration-merges the `todo/write` event payload
+// read by `planUpdate`. The bridge consumes the committed snapshot whatever
+// composition produced it; the todo tool itself stays optional.
+import type {} from '@deepseek-ai/dsh-tool-todo'
 // Side-effect type import: declaration-merges the optional `ctx.tools` service
 // read below. `ToolCallView`/`ToolResultView` are the consumed tool-owned
 // render intents.
@@ -165,6 +169,27 @@ export async function toolResultUpdate(
     status: message.isError === true ? 'failed' : 'completed',
     ...view?.title === undefined ? {} : { title: view.title },
     content,
+  }
+}
+
+/**
+ * Project one committed whole-list todo snapshot into the standard plan
+ * update. ACP replaces the entire plan on every update, matching the
+ * last-write-wins snapshot; the two vocabularies share the same three-state
+ * lifecycle, so statuses pass through unchanged. `priority` is a required
+ * protocol field with no committed source and stays fixed rather than
+ * invented per entry.
+ * @param event - committed DSH todo-write event.
+ * @returns the standard replacement plan.
+ */
+export function planUpdate(event: SessionEvent<'todo/write'>): SessionUpdate {
+  return {
+    sessionUpdate: 'plan',
+    entries: event.data.todos.map(todo => ({
+      content: todo.content,
+      status: todo.status,
+      priority: 'medium',
+    })),
   }
 }
 

@@ -29,7 +29,7 @@ Use this package when a script, test runner, or another harness needs to run age
 
 ### When to choose it
 
-Choose it when automation should own the interaction: an out-of-process subagent, test runner, or scripted controller that manages persistent sessions, tools, model selection, and permissions. Avoid it when a human needs DSH-specific presentation, plans, todos, terminal views, or elicitation; this server intentionally exposes only the standard ACP v1 surface.
+Choose it when automation should own the interaction: an out-of-process subagent, test runner, or scripted controller that manages persistent sessions, tools, model selection, and permissions. Avoid it when a human needs DSH-specific presentation, terminal views, or elicitation; this server intentionally exposes only the standard ACP v1 surface.
 
 ### Minimal configuration
 
@@ -70,8 +70,10 @@ One connection can run several sessions at once, each independent. The calls a c
 | `session/set_config_option` | A serialized update to the advertised `model`, `reasoning_effort`, or `mode`, returning the complete resulting state. |
 | `session/prompt` | Ordered text, resource links, and supported images, one prompt at a time per session; settlement follows root and descendant completion plus ordered update delivery. |
 | `session/cancel` / `$/cancel_request` | The prompt-owned cancellation path; without an ACP prompt in flight it cancels autonomous work, while unknown session ids are no-ops. |
-| `session/update` | Committed assistant messages and thoughts, tool lifecycle with standard kind, title, locations, call- and result-time diffs, and authored content, configuration changes, and context usage, serialized per session. |
-| `session/request_permission` | A permission prompt carrying the emitted tool call, with one-shot allow/reject choices; your client can answer automatically. |
+| `session/update` | Committed assistant messages and thoughts, tool lifecycle with standard kind, title, locations, call- and result-time diffs, and authored content, replacement `plan` updates from the committed todo list, configuration changes, and context usage, serialized per session. |
+| `session/request_permission` | A permission prompt carrying the emitted tool call, with one-shot allow/reject options in a fixed order — the order is a wire contract for clients that choose automatically, and every grant covers that call only. |
+
+Every update derives from committed session facts; nothing pre-commit reaches the client, so partial output never needs revoking. A `plan` update replaces the whole plan: each committed todo list rewrite becomes the complete `entries` array, and the next turn clears a plan the session already emitted.
 
 Session listing and resume admit ordinary forks, including historical logs with `parentSession`; `origin: subagent` remains excluded.
 
@@ -79,7 +81,7 @@ A prompt remains in flight while managed descendants run, while their results tr
 
 A failure to append `turn/start` or `turn/end` rejects the prompt even when a preceding turn completed.
 
-Session configuration offers opaque provider/model choices from the live LLM service catalog and a `reasoning_effort` selector when the exact model declares one. When the composition mounts permission presets, a `mode` selector advertises their catalog — the shipped table offers `read-only`, `workspace-write`, and `danger-full-access` — and switching it writes the bundled sandbox mode and approval policy immediately. An option change records the Session selection and takes effect at the next model step, including a continuation in the current turn; an already prepared step and its retries keep their captured selection. Image admission checks the selection current when admission begins. Resume restores a recorded selection even when no request has used it yet. ACP clients are trusted controllers: stdio MCP entries authorize their absolute commands and environment, HTTP entries authorize their absolute HTTP(S) URLs and headers, and any initial connection or discovery failure rolls back the unpublished Agent. Unsupported surfaces are omitted or rejected: `session/load`, deletion, fork, additional directories, SSE or ACP-transport MCP, legacy `session/set_mode` modes, commands, plans, terminals, client filesystem operations, and elicitation.
+Session configuration offers opaque provider/model choices from the live LLM service catalog and a `reasoning_effort` selector when the exact model declares one. When the composition mounts permission presets, a `mode` selector advertises their catalog — the shipped table offers `read-only`, `workspace-write`, and `danger-full-access` — and switching it writes the bundled sandbox mode and approval policy immediately. The presets are a soft boundary: a tool denied by the sandbox may retry with `sandbox_permissions` and a `justification`, which arrives as an ordinary permission prompt — the client's answer is the only barrier. An option change records the Session selection and takes effect at the next model step, including a continuation in the current turn; an already prepared step and its retries keep their captured selection. Image admission checks the selection current when admission begins. Resume restores a recorded selection even when no request has used it yet. ACP clients are trusted controllers: stdio MCP entries authorize their absolute commands and environment, HTTP entries authorize their absolute HTTP(S) URLs and headers, and any initial connection or discovery failure rolls back the unpublished Agent. Unsupported surfaces are omitted or rejected: `session/load`, deletion, fork, additional directories, SSE or ACP-transport MCP, legacy `session/set_mode` modes, commands, terminals, client filesystem operations, and elicitation.
 
 -----
 
@@ -95,7 +97,7 @@ This section explains how the server realizes the behavior above and points at t
 
 The server is an automation transport with an intentionally standard public protocol. Three commitments shape it:
 
-- **Standard semantic updates only.** The wire carries committed messages and thoughts, tool lifecycle with standard presentation fields derived from the tool-owned render intents, configuration, and context usage; raw provider deltas, retry attempts, DSH-private presentation data, and unsupported content stay off the wire.
+- **Standard semantic updates only.** The wire carries committed messages and thoughts, tool lifecycle with standard presentation fields derived from the tool-owned render intents, replacement plans from the committed todo list, configuration, and context usage; raw provider deltas, retry attempts, uncommitted output, DSH-private presentation data, and unsupported content stay off the wire.
 - **Truthful capability and configuration state.** `initialize` advertises only mounted support, topology changes publish complete configuration options, and a prompt pins the exact route it admitted.
 - **Quiescence before settlement.** Prompt and close operations settle only after their owned admission, Agent activity, ordered updates, descendants, persistence, and disposal have reached the required terminal state.
 
@@ -174,7 +176,7 @@ These limits define when this package is a poor fit or needs special operational
 - **One primary workspace** — additional directories remain unsupported.
 - **Raster prompt images only** — PNG, JPEG, WebP, and GIF require a durable attachment store and an exact image-capable route.
 - **MCP tools only** — MCP resources and prompts have no DSH consumer.
-- **No transcript replay or interactive extensions** — session deletion, fork, `session/load`, modes, commands, plans, terminals, client filesystem operations, and elicitation remain outside this automation surface.
+- **No transcript replay or interactive extensions** — session deletion, fork, `session/load`, legacy `session/set_mode` modes, commands, terminals, client filesystem operations, and elicitation remain outside this automation surface.
 
 <a id="dev-note"></a>
 ### Dev Note

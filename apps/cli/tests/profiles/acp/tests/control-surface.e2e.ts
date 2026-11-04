@@ -80,6 +80,9 @@ describe('standard ACP v1 control surface', () => {
         'usage_update',
         'tool_call',
         'tool_call_update',
+        'tool_call',
+        'plan',
+        'tool_call_update',
         'agent_message_chunk',
         'usage_update',
       ])

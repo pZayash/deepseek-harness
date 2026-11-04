@@ -17,13 +17,17 @@ import { createUserMessage, errorChain, type UserMessage } from '@deepseek-ai/ds
 // Side-effect type import: declaration-merges the optional `ctx.permissionPresets`
 // service read below. The presets package is a peer, not a hard runtime import.
 import type {} from '@deepseek-ai/dsh-permission-presets'
+// Side-effect type import: declaration-merges the `todo/write` event this
+// module projects onto the standard `plan` update. The producing tool is
+// optional; no plan is emitted when no composition writes one.
+import type {} from '@deepseek-ai/dsh-tool-todo'
 import { type Session, type SessionEvent, type SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AcpContentError, admitAcpPrompt } from './content.ts'
 import { turnEndToStopReason } from './codec.ts'
 import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModeControl, MODE_CONFIG_ID } from './mode-control.ts'
 import { AcpModelControl } from './model-control.ts'
-import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
+import { assistantUpdates, planUpdate, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
 /** Subagent completion and teardown without depending on the subagent package. */
 interface SubagentLifecycle {
@@ -112,6 +116,13 @@ export class AcpSession {
    * result-time render intent, which `tool/result` events do not carry.
    */
   private readonly toolCalls = new Map<string, InflightToolCall>()
+  /**
+   * Whether a `plan` update has reached this session's update chain. The flag
+   * flips synchronously with enqueueing, so a `turn/start` observed before
+   * delivery still clears the plan the client was already promised; sessions
+   * whose composition never writes a todo list emit no plan noise at all.
+   */
+  private planEmitted = false
   private outputTail = Promise.resolve()
   private inflight: InflightPrompt | undefined
   private closing: Promise<void> | undefined
@@ -400,6 +411,31 @@ export class AcpSession {
           /* v8 ignore start -- supplemental-content conversion failure is contained and cannot fail Agent work. */
           .catch((error: unknown) => {
             this.ctx.logger.warn(`acp: tool-result update delivery failed: ${errorChain(error)}`)
+          })
+        /* v8 ignore stop */
+      } else if (event.type === 'todo/write') {
+        this.planEmitted = true
+        const previous = this.outputTail
+        this.outputTail = previous
+          .then(() => this.notify({ sessionId: this.agent.session.id, update: planUpdate(event) }))
+          /* v8 ignore start -- the bridge notifier contains transport rejection. */
+          .catch((error: unknown) => {
+            this.ctx.logger.warn(`acp: plan update delivery failed: ${errorChain(error)}`)
+          })
+        /* v8 ignore stop */
+      } else if (event.type === 'turn/start' && this.planEmitted) {
+        // A new turn retires the previous turn's plan; the clearing update is
+        // emitted only once a plan exists, so compositions without the todo
+        // tool never see one.
+        const previous = this.outputTail
+        this.outputTail = previous
+          .then(() => this.notify({
+            sessionId: this.agent.session.id,
+            update: { sessionUpdate: 'plan', entries: [] },
+          }))
+          /* v8 ignore start -- the bridge notifier contains transport rejection. */
+          .catch((error: unknown) => {
+            this.ctx.logger.warn(`acp: plan update delivery failed: ${errorChain(error)}`)
           })
         /* v8 ignore stop */
       } else if (event.type === 'turn/end') {
