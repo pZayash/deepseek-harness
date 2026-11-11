@@ -1,0 +1,70 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/llm/llm-devin-acp/README.md
+/:
+  en: 1370e7f65960ffdc
+  zh: 8cd4d6aa01fbc5a0
+/deepseek-ai-dsh-llm-devin-acp:
+  en: bde5f114a7cacea7
+  zh: b5d4c9f677cc2b7d
+/deepseek-ai-dsh-llm-devin-acp/summary:
+  en: 7f5697da6d2a3d64
+  zh: f6bbe9512569bbfd
+/deepseek-ai-dsh-llm-devin-acp/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 1db86285abf6c499
+/deepseek-ai-dsh-llm-devin-acp/use-this-package:
+  en: 8a712c5163de7eb5
+  zh: 92dd6d5677a7042b
+/deepseek-ai-dsh-llm-devin-acp/use-this-package/when-to-choose-it:
+  en: 53e4019861efe435
+  zh: 475eb3aa1831e8ff
+/deepseek-ai-dsh-llm-devin-acp/use-this-package/configuration:
+  en: 883d31e8b86b311b
+  zh: a6ea3ef67a1fe480
+/deepseek-ai-dsh-llm-devin-acp/use-this-package/model-discovery:
+  en: 60933f2cefe377b4
+  zh: 1b98fc589813681a
+/deepseek-ai-dsh-llm-devin-acp/use-this-package/what-you-get:
+  en: e9518e8e9262f8bb
+  zh: d59f510401fb3ab6
+/deepseek-ai-dsh-llm-devin-acp/use-this-package/failure-and-recovery:
+  en: 1a7c68de5cfa545c
+  zh: 44fc92639c55f8d8
+/deepseek-ai-dsh-llm-devin-acp/understand-the-implementation:
+  en: 42b15ac6321706aa
+  zh: ce1d25bffb6948cd
+/deepseek-ai-dsh-llm-devin-acp/understand-the-implementation/one-agent-session-per-harness-session:
+  en: da3619a3aa288314
+  zh: bf3cea3ed91a987f
+/deepseek-ai-dsh-llm-devin-acp/understand-the-implementation/transcript-projection:
+  en: 50d5c9c6321345fc
+  zh: 0b54c61240b04a6e
+/deepseek-ai-dsh-llm-devin-acp/understand-the-implementation/lifecycle:
+  en: d6b3684ec6f368a9
+  zh: 085cfbcc916f7221
+/deepseek-ai-dsh-llm-devin-acp/further-exploration:
+  en: 53e4f00ede508ae0
+  zh: 5af47eb7ab3a3169
+/deepseek-ai-dsh-llm-devin-acp/model-experience:
+  en: 215e7ba838619b7b
+  zh: a311da3843709f90
+/deepseek-ai-dsh-llm-devin-acp/model-experience/assistant-request:
+  en: 9e114adefc89c487
+  zh: 467987010b98f462
+/deepseek-ai-dsh-llm-devin-acp/model-experience/assistant-request/what-the-model-sees:
+  en: c7c15070a2b4783c
+  zh: bb2a490aa94497d4
+/deepseek-ai-dsh-llm-devin-acp/model-experience/assistant-request/token-effect:
+  en: b42add59bf19f5cc
+  zh: 03cd20cd1d054290
+/deepseek-ai-dsh-llm-devin-acp/model-experience/assistant-request/kv-cache-effect:
+  en: 21c428588445a0bf
+  zh: 4a1557d82653f9cb
+/deepseek-ai-dsh-llm-devin-acp/known-limitations-and-deferred-work:
+  en: 0f6b77a24dacc3b0
+  zh: 0ac1560717d44f72
+/deepseek-ai-dsh-llm-devin-acp/known-limitations-and-deferred-work/dev-note:
+  en: 0ada7742453f71ca
+  zh: 829f72ac5fbc93ed

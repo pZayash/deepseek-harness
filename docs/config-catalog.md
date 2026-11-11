@@ -16,7 +16,7 @@ Each package entry labels its data with three identifiers: `inject` lists the se
 
 - `inject`: `agents` · `llm` · `sessionPersistence` · `sessions`
 - `refs`: `Stream` (`@agentclientprotocol/sdk`)
-- `source`: [`packages/acp/acp/src/index.ts:101`](../packages/acp/acp/src/index.ts)
+- `source`: [`packages/acp/acp/src/index.ts:108`](../packages/acp/acp/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the provider/model selection used for each ACP-created agent. */
@@ -1944,6 +1944,61 @@ export interface Config extends ProtocolConfig, ModelListingConfig {
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-api-key -->
+
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-devin-acp -->
+<a id="deepseek-aidsh-llm-devin-acp"></a>
+
+## `@deepseek-ai/dsh-llm-devin-acp`
+
+- `inject`: `llm` · `subprocess`
+- `source`: [`packages/llm/llm-devin-acp/src/index.ts:22`](../packages/llm/llm-devin-acp/src/index.ts)
+
+```ts config-catalog
+/** Config: how to run the Devin agent that backs the provider route. */
+export interface Config {
+  /** Provider route name offered to model selectors (default `devin`). */
+  providerName: string
+  /** Human-readable provider name shown beside its models (default `Devin`). */
+  displayName: string
+  /** The Devin executable to spawn. */
+  command: string
+  /** Arguments passed to {@link command} (default `['acp']`). */
+  args: string[]
+  /**
+   * Extra environment variables for the agent process. Forwarded on top of a
+   * credential-scrubbed copy of the parent environment, so an explicit value
+   * reaches the agent while ambient secrets do not leak implicitly.
+   */
+  env: Record<string, string>
+  /**
+   * Working directory for agent processes and their sessions. Omitted uses the
+   * harness process directory, because a model request carries no workspace of
+   * its own.
+   */
+  cwd?: string
+  /**
+   * How the agent's own `session/request_permission` prompts are answered:
+   * `reject` (default — decline every prompt) or `allow` (approve via the first
+   * `allow_once` or `allow_always` option). No prompt is surfaced to a human.
+   */
+  permission: 'allow' | 'reject'
+  /** Session configuration option id that selects the model (default `model`). */
+  modelConfigId: string
+  /** How long a discovered model catalog stays authoritative, in milliseconds (default 600000). */
+  discoveryTtlMs: number
+  /** Bound for one catalog discovery, including agent startup, in milliseconds (default 30000). */
+  discoveryTimeoutMs: number
+  /** Idle agent sessions kept alive (default 4). */
+  maxSessions: number
+  /** Idle time after which an agent session is released, in milliseconds (default 1800000). */
+  sessionIdleMs: number
+  /** Grace after stdin EOF for an agent to flush and exit, in milliseconds (default 6000). */
+  disposeEofGraceMs: number
+  /** Termination grace for the subprocess seam, in milliseconds (default 3000). */
+  disposeGraceMs: number
+}
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-devin-acp -->
 
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-pi-ai -->
 <a id="deepseek-aidsh-llm-pi-ai"></a>

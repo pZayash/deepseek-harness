@@ -13198,6 +13198,40 @@ importers:
         specifier: workspace:*
         version: link:../llm-deepseek
 
+  packages/llm/llm-devin-acp:
+    dependencies:
+      '@agentclientprotocol/sdk':
+        specifier: 1.4.0
+        version: 1.4.0(zod@4.4.3)
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-attachment':
+        specifier: workspace:*
+        version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:*
+        version: link:../llm
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:*
+        version: link:../../core/session
+      '@deepseek-ai/dsh-subprocess':
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess
+      '@deepseek-ai/dsh-subprocess-local':
+        specifier: workspace:*
+        version: link:../../subprocess/subprocess-local
+      '@deepseek-ai/dsh-timeout':
+        specifier: workspace:*
+        version: link:../../util/timeout
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:*
+        version: link:../../core/tools
+
   packages/llm/llm-pi-ai:
     dependencies:
       '@deepseek-ai/dsh-brand':

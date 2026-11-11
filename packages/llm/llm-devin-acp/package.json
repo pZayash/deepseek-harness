@@ -1,0 +1,49 @@
+{
+  "name": "@deepseek-ai/dsh-llm-devin-acp",
+  "description": "Devin models as a harness LLM provider: drives the Devin ACP agent in a spawned process and advertises the models it offers",
+  "version": "0.2.2-alpha.3",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/llm/llm-devin-acp"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0",
+    "@deepseek-ai/schemastery": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-attachment": "workspace:*",
+    "@deepseek-ai/dsh-llm": "workspace:*",
+    "@deepseek-ai/dsh-session": "workspace:*",
+    "@deepseek-ai/dsh-subprocess": "workspace:*",
+    "@deepseek-ai/dsh-subprocess-local": "workspace:*",
+    "@deepseek-ai/dsh-timeout": "workspace:*",
+    "@deepseek-ai/dsh-tools": "workspace:*"
+  }
+}

@@ -477,6 +477,7 @@
     { "path": "./packages/llm/llm-deepseek-api-key" },
     { "path": "./packages/llm/llm-deepseek-account" },
     { "path": "./packages/llm/llm-pi-ai" },
+    { "path": "./packages/llm/llm-devin-acp" },
     { "path": "./packages/shell/bash-local" },
     { "path": "./packages/shell/shell-env" },
     { "path": "./packages/shell/pwsh-local" },
