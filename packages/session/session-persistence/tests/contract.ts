@@ -612,3 +612,63 @@ export function runPersistenceContract(name: string, make: () => Promise<Contrac
     })
   })
 }
+
+/**
+ * Run the deletion contract for a backend that implements `remove`. Kept
+ * separate from {@link runPersistenceContract} because the Service Definition's
+ * default refuses deletion; only backends with storage-level removal call this.
+ * @param name - suite label.
+ * @param make - factory producing one fresh backend per test.
+ */
+export function runRemovalContract(name: string, make: () => Promise<ContractBackend>): void {
+  describe(`SessionPersistence removal contract: ${name}`, () => {
+    it('removes a materialized session from stat, list, and open', async () => {
+      const { persistence, dispose } = await make()
+      try {
+        const m = meta('remove', '/work')
+        const handle = await persistence.create(m)
+        await handle.append(oneTurnLog())
+        await handle.close()
+
+        await persistence.remove(m.id)
+
+        expect(await persistence.stat(m.id)).toBeUndefined()
+        expect(await persistence.list()).toEqual([])
+        await expect(persistence.open(m.id, 'read')).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+        await expect(persistence.remove(m.id)).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+      } finally {
+        await dispose()
+      }
+    })
+
+    it('refuses an active write handle and removes after close', async () => {
+      const { persistence, dispose } = await make()
+      try {
+        const m = meta('remove-active', '/work')
+        const handle = await persistence.create(m)
+        await handle.append(oneTurnLog())
+
+        await expect(persistence.remove(m.id)).rejects.toBeInstanceOf(SessionAlreadyOwnedError)
+        expect((await handle.read()).events).toEqual(oneTurnLog())
+
+        await handle.close()
+        await persistence.remove(m.id)
+        expect(await persistence.stat(m.id)).toBeUndefined()
+      } finally {
+        await dispose()
+      }
+    })
+
+    it('reports not-found for a created-but-unmaterialized session', async () => {
+      const { persistence, dispose } = await make()
+      try {
+        const m = meta('remove-pending', '/work')
+        await persistence.create(m)
+
+        await expect(persistence.remove(m.id)).rejects.toBeInstanceOf(SessionPersistenceNotFoundError)
+      } finally {
+        await dispose()
+      }
+    })
+  })
+}

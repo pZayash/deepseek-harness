@@ -1,6 +1,6 @@
 # Agent Note: 删除已持久化的 Session
 
-Status: proposed
+Status: implemented
 
 [English](2026-11-11-session-deletion.md) | 中文
 
@@ -10,7 +10,7 @@ Status: proposed
 
 删除是破坏性操作，且跨越多个所有者：Session 日志（所有保留的格式代次）、持久化投影缓存、`session-query` 索引以及 ACP 协议界面。它还要与活跃 Session、其他进程以及进行中的读取竞争。
 
-## Proposal
+## Decision
 
 新增 `SessionPersistence.remove(id, options)` 作为存储契约。基类实现抛出带类型的“不支持”错误，使每个后端显式获得删除能力，而不是静默继承某种策略。
 
@@ -21,16 +21,16 @@ JSONL 后端以原子方式删除 Session 目录的所有保留代次：获取 S
 - 当前进程中活跃的 Session（`ctx.sessions.get`）不可删除。
 - 本服务持有的写句柄会拒绝删除；读句柄不会阻止删除，但之后会观察到 not-found。
 - 由其他进程持有的锁会大声失败，绝不强制删除。
-- Subagent Session 随其所属根 Session 一起删除或被拒绝，不单独删除。
+- Subagent Session 随其所属根 Session 一起按 child-first 删除；独立的 subagent Session 不可删除。
 
 跨包清理：
 
 - 日志删除提交后，投影缓存删除该 id 的所有行。
-- `session-query` 在新的 `session/deleted` 事件上删除其索引行；错过该事件的后端在下一次 rescan 时删除，因此即使没有索引，删除结果依然正确。
+- `session-query` 可以在 `session/deleted` 事件上删除其索引行；在它订阅之前，下一次 rescan 会修复派生索引，因此没有索引时存储删除依然正确。
 - 附件保留：它们按内容寻址，可能被其他 Session 或仍打开的读取共享。孤立的附件对象由独立的保留任务负责。
 - 标题、统计与检查点存放在投影缓存中，随缓存一起消失。
 
-ACP 公布 `sessionCapabilities.delete: {}` 并实现 `session/delete`：校验一个非活跃、非 subagent、工作区匹配的根 Session，调用 `remove`，返回 `{}`。客户端从响应与下一次 `session/list` 得知该 Session 已消失。
+`session/deleted` 是由持久化提供方在产物消失后发出的宿主服务事件，绝不是 Session 日志事件：日志正是被删除的对象。ACP 公布 `sessionCapabilities.delete: {}` 并实现 `session/delete`：拒绝活跃成员，校验非 subagent 根会话，按 child-first 删除全部已持久化后代，并返回 `{}`。
 
 ## Alternatives considered
 
@@ -44,21 +44,9 @@ ACP 公布 `sessionCapabilities.delete: {}` 并实现 `session/delete`：校验�
 
 **只通过 `session-query` 执行删除。** 不予采用：查询索引是派生的、可选的；没有它时存储也必须保持正确。
 
-## Open questions
+## Consequences
 
-- `session/deleted` 应该作为根日志上的持久 Session 事件（不合适：日志正在被删除），还是由持久化提供方发出的宿主服务事件？后者让存储与索引解耦。
-- Web 是否在同一次变更中提供删除，还是先只做 ACP？
-- trash 目录树在启动清理前保留多久？
-- 删除根 Session 时，是一并删除其 subagent 子会话，还是在仍存在可继续子会话时拒绝？
+删除不可逆；重命名到 trash 是唯一的恢复窗口，崩溃只会留下被忽略的 `.trash` 条目，而不会留下可复活的 Session。跨进程锁竞争可能删除另一个进程刚开始读取的 Session，因此读取方把 not-found 视为有效结果。投影缓存会丢失被删除树的标题、统计与检查点；`session-query` 在订阅 `session/deleted` 或 rescan 之前会返回陈旧行。附件作为共享的内容寻址对象保留。ACP 按 child-first 删除根及其后代，并在任一成员活跃时拒绝。
 
-## Acceptance criteria
-
-JSONL 契约测试覆盖删除所有代次、not-found、其他进程持有、打开的写句柄以及 trash 恢复。投影缓存与 session-query 测试覆盖行删除。ACP 测试覆盖能力公布、成功删除、非活跃要求、工作区不匹配与 subagent 拒绝。免密钥的 recorded snapshot 覆盖 ACP 请求与响应。
-
-## Risks
-
-- 删除不可逆：错误的 id 或过早的 trash 清理会销毁历史。重命名到 trash 是唯一的恢复窗口。
-- 跨进程锁竞争可能删除另一个进程刚开始读取的 Session；读取方必须把 not-found 视为有效结果。
-- 错过 `session/deleted` 的索引后端在下一次 rescan 之前会返回陈旧行。
-- 删除仍有活跃 subagent 子会话的根 Session 会使其后续无法继续；必须先按 child-first 释放再移除产物。
+验证：持久化删除契约覆盖从 stat/list/open 中成功移除、缺失与未物化 Session 的 not-found、以及活跃写句柄的拒绝；JSONL 套件覆盖发出的 `session/deleted` 事件；ACP 测试覆盖成功删除、活跃拒绝与后代删除。免密钥 recorded snapshot 与此前 ACP 场景一样，因 Windows 检出限制而延后。
 

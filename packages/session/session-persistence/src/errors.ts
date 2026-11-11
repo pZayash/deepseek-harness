@@ -36,8 +36,16 @@ export class SessionAlreadyOwnedError extends Error {
   }
 }
 
-/** A mutation (`append`/`flush`) was called on a read handle. */
-export class SessionReadOnlyError extends Error {
+/** The backend does not implement durable Session deletion. */
+export class SessionPersistenceUnsupportedError extends Error {
+  /** @param sessionId - the Session the backend cannot delete. */
+  constructor(readonly sessionId: SessionId) {
+    super(`session "${sessionId}": this persistence backend does not support deletion`)
+    this.name = 'SessionPersistenceUnsupportedError'
+  }
+}
+
+/** A mutation (`append`/`flush`) was called on a read handle. */export class SessionReadOnlyError extends Error {
   /**
    * @param sessionId - the session the read handle observes.
    * @param operation - the refused mutating operation name.

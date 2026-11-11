@@ -9,8 +9,22 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { SessionHandle, SessionAccess } from './handle.ts'
+import { SessionPersistenceUnsupportedError } from './errors.ts'
 import type { SessionLocation } from './errors.ts'
 import type { SessionPersistenceRevision } from './revision.ts'
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * One stored Session and every retained format generation were deleted.
+     * Emitted after the artifact is no longer observable; derived indexes may
+     * drop their rows, and backends without a listener repair on rescan.
+     * @param id - the deleted Session identity.
+     * @mode emit
+     */
+    'session/deleted'(id: SessionId): void
+  }
+}
 
 // Re-export the metadata vocabulary so Consumers import it from the Service Definition.
 export type { SessionHeader } from '@deepseek-ai/dsh-session'
@@ -31,6 +45,7 @@ export {
   SessionOwnershipLostError,
   SessionPersistenceCorruptionError,
   SessionPersistenceNotFoundError,
+  SessionPersistenceUnsupportedError,
   SessionReadOnlyError,
   sessionFormatVersionRefusal,
 } from './errors.ts'
@@ -112,6 +127,12 @@ export interface SessionPersistenceStatOptions {
 /** Options for {@link SessionPersistence.list}. */
 export interface SessionPersistenceListOptions {
   /** Optional cancellation for backend listing work. */
+  readonly signal?: AbortSignal
+}
+
+/** Options for {@link SessionPersistence.remove}. */
+export interface SessionPersistenceRemoveOptions {
+  /** Optional cancellation observed before backend work starts. */
   readonly signal?: AbortSignal
 }
 
@@ -208,6 +229,24 @@ export abstract class SessionPersistence extends Service {
    * @returns one snapshot per stored session.
    */
   abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+  /**
+   * Delete one stored Session and every retained format generation.
+   *
+   * A backend implements this only when its storage can remove the artifact.
+   * Deletion refuses an active write owner, removes every generation of the
+   * Session, and emits `session/deleted` once the artifact is no longer
+   * observable. Read handles do not block deletion; they observe not-found
+   * afterwards.
+   * @param id - the stored Session to delete.
+   * @param options - optional cancellation.
+   * @throws {SessionPersistenceNotFoundError} when no artifact exists.
+   * @throws {SessionAlreadyOwnedError} while a write handle owns the Session.
+   * @throws {SessionPersistenceUnsupportedError} when the backend has no deletion.
+   */
+  remove(id: SessionId, _options?: SessionPersistenceRemoveOptions): Promise<void> {
+    return Promise.reject(new SessionPersistenceUnsupportedError(id))
+  }
 }
 
 export default SessionPersistence

@@ -14,6 +14,8 @@ import {
   type ForkSessionResponse,
   type LoadSessionRequest,
   type LoadSessionResponse,
+  type DeleteSessionRequest,
+  type DeleteSessionResponse,
   type PromptRequest,
   type PromptResponse,
   type RequestPermissionRequest,
@@ -196,6 +198,7 @@ interface BridgeClient {
   resumeSession: NonNullable<AcpAgent['resumeSession']>
   loadSession: (params: LoadSessionRequest) => Promise<LoadSessionResponse>
   forkSession: (params: ForkSessionRequest) => Promise<ForkSessionResponse>
+  deleteSession: (params: DeleteSessionRequest) => Promise<DeleteSessionResponse>
   closeSession: NonNullable<AcpAgent['closeSession']>
   setSessionConfigOption: NonNullable<AcpAgent['setSessionConfigOption']>
   prompt: (params: PromptRequest, options?: SendRequestOptions) => Promise<PromptResponse>
@@ -322,6 +325,7 @@ export async function makeBridgeHarness(options: {
     resumeSession: params => client.request(methods.agent.session.resume, params),
     loadSession: params => client.request(methods.agent.session.load, params),
     forkSession: params => client.request(methods.agent.session.fork, params),
+    deleteSession: params => client.request(methods.agent.session.delete, params),
     closeSession: params => client.request(methods.agent.session.close, params),
     setSessionConfigOption: params => client.request(methods.agent.session.setConfigOption, params),
     prompt: (params, options) => client.request(methods.agent.session.prompt, params, options),

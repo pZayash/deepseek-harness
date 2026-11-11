@@ -15,7 +15,7 @@ import {
   toHeaderLine,
 } from '../src/format.ts'
 import {
-  runPersistenceContract, meta, oneTurnLog, releasedV1OneTurnLog,
+  runPersistenceContract, runRemovalContract, meta, oneTurnLog, releasedV1OneTurnLog,
 } from '../../session-persistence/tests/contract.ts'
 import { runLiveWritePathContract } from '../../session-persistence/tests/live-write-contract.ts'
 import { LIVE_WRITE_BATCH_MAX_DELAY_MS, type JsonlSessionHandle, type JsonlHandleStorage } from '../src/storage.ts'
@@ -357,6 +357,19 @@ runPersistenceContract('jsonl-none', async () => {
     // uncommitted crash fragment, so the write path sees a torn tail to truncate.
     corruptTail: async (id, cwd) => {
       await appendFile(rawLogPath(dir, cwd, id), '{"type":"assistant/chunk","seq":8,"ti')
+    },
+  }
+})
+
+runRemovalContract('jsonl-none', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'dsh-jsonl-remove-'))
+  const ctx = new Context()
+  const fiber = await ctx.plugin(JsonlSessionPersistence, { root: dir, compression: 'none' })
+  return {
+    persistence: ctx.sessionPersistence,
+    dispose: async () => {
+      await fiber.dispose()
+      await rm(dir, { recursive: true, force: true })
     },
   }
 })

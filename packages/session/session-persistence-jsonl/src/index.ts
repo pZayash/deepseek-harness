@@ -14,21 +14,22 @@ import {
   sessionFormatCatalog,
 } from '@deepseek-ai/dsh-session-format-catalog'
 import { readdirSync, type Dirent } from 'node:fs'
-import { open, mkdir, readdir, realpath, link, rm, stat, truncate } from 'node:fs/promises'
+import { open, mkdir, readdir, realpath, link, rename, rm, stat, truncate } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { scheduler } from 'node:timers/promises'
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import pLimit, { type LimitFunction } from 'p-limit'
 import {
   SessionPersistence, SessionPersistenceRevision, SessionFormatUnsupportedError,
   SessionPersistenceCorruptionError,
-  SessionAlreadyExistsError, SessionPersistenceNotFoundError,
+  SessionAlreadyExistsError, SessionAlreadyOwnedError, SessionPersistenceNotFoundError,
   assertStoredId, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
   type SessionAccess, type SessionHandle,
   type SessionHandleReadResult,
   type SessionLocation, type SessionPersistenceCreateOptions,
   type SessionPersistenceListOptions, type SessionPersistenceOpenOptions,
+  type SessionPersistenceRemoveOptions,
   type SessionPersistenceSnapshot, type SessionPersistenceStatOptions,
   type SessionPersistenceRevision as PersistenceRevision,
 } from '@deepseek-ai/dsh-session-persistence'
@@ -563,8 +564,51 @@ class JsonlSessionPersistence extends SessionPersistence {
     return snapshots
   }
 
-  // --- handle-facing storage internals (package-private via the handle class below) ---
+  /**
+   * Delete one stored session and every retained format generation.
+   *
+   * The session directory is renamed under the backend's hidden `.trash`
+   * directory while the write lease is held, then removed best-effort. A crash
+   * therefore leaves an ignored trash entry instead of a half-deleted session
+   * that `list` could resurrect. Another process holding the lease refuses the
+   * deletion, and an active local write handle refuses before any rename.
+   * @param id - the stored session to delete.
+   * @param options - optional cancellation.
+   */
+  override async remove(id: SessionId, options?: SessionPersistenceRemoveOptions): Promise<void> {
+    const signal = options?.signal
+    signal?.throwIfAborted()
+    await this.ensureRootEncoding()
+    signal?.throwIfAborted()
+    // An unmaterialized created session has no artifact to delete.
+    if (this.tracker.hasPending(id)) throw new SessionPersistenceNotFoundError(id)
+    if (this.tracker.hasWriter(id)) throw new SessionAlreadyOwnedError(id)
+    const selected = await this.findLog(id, signal)
+    if (selected === undefined) throw new SessionPersistenceNotFoundError(id)
+    const dir = dirname(selected.currentPath)
+    const lease = await SessionWriteLease.acquire(dir, id)
+    let trashed: string | undefined
+    try {
+      signal?.throwIfAborted()
+      const trashRoot = join(this.root, '.trash')
+      await mkdir(trashRoot, { recursive: true, mode: 0o700 })
+      trashed = join(trashRoot, `${encodeSegment(id)}-${randomUUID()}`)
+      try {
+        await rename(dir, trashed)
+      } catch (error: unknown) {
+        if (isENOENT(error)) throw new SessionPersistenceNotFoundError(id)
+        throw error
+      }
+    } finally {
+      await lease.release()
+    }
+    this.coldLogMemo.delete(id)
+    this.migrationPreparations.delete(id)
+    this.ctx.emit('session/deleted', id)
+    await rm(trashed, { recursive: true, force: true })
+  }
 
+  // --- handle-facing storage internals (package-private via the handle class below) ---
   /** Resolve and read one stored log, refusing loudly when the artifact is absent. */
   private async requireStoredLog(id: SessionId, signal?: AbortSignal): Promise<StoredLog> {
     const selected = await this.findLog(id, signal)
@@ -1673,7 +1717,9 @@ class JsonlSessionPersistence extends SessionPersistence {
       signal?.throwIfAborted()
       const entries = await readdir(this.root, { withFileTypes: true })
       signal?.throwIfAborted()
-      return entries.filter(e => e.isDirectory()).map(e => join(this.root, e.name))
+      return entries
+        .filter(entry => entry.isDirectory() && !entry.name.startsWith('.'))
+        .map(entry => join(this.root, entry.name))
     } catch (error) {
       // Only an absent root means no sessions; rethrow every other I/O failure.
       if (isENOENT(error)) return []

@@ -192,6 +192,15 @@ export class SessionProjectionCache extends Service {
   }
 
   /**
+   * Drop every persisted projection row for one Session that no longer exists.
+   * The caller deletes the authoritative log first; a missing row is a no-op.
+   * @param id - the deleted Session identity.
+   */
+  async remove(id: SessionId): Promise<void> {
+    await this.requireTable().delete(id)
+  }
+
+  /**
    * View selected wire rows as one block bound to the lowest served
    * watermark: the seq every served value has folded through at least. The
    * number is the record's own; whether a consumer may compare it with a

@@ -1,6 +1,6 @@
 # Agent Note: Delete a persisted Session
 
-Status: proposed
+Status: implemented
 
 English | [中文](2026-11-11-session-deletion.zh.md)
 
@@ -10,7 +10,7 @@ No product surface can delete a persisted Session. `SessionPersistence` exposes 
 
 Deletion is destructive and spans several owners: the Session log (every retained format generation), the persisted projection cache, the `session-query` index, and the ACP protocol surface. It also races live Sessions, other processes, and in-flight readers.
 
-## Proposal
+## Decision
 
 Add `SessionPersistence.remove(id, options)` as the storage contract. The base implementation throws a typed unsupported error, so backends gain deletion explicitly instead of silently inheriting a policy.
 
@@ -21,16 +21,16 @@ Ownership rules:
 - A session active in this process (`ctx.sessions.get`) cannot be deleted.
 - A write handle owned by this service refuses deletion; read handles do not block but observe not-found afterwards.
 - A lock owned by another process fails loud, never forces deletion.
-- Subagent Sessions are deleted with their owning root Session or refused, not deleted standalone.
+- Subagent Sessions are deleted with their owning root Session, child-first; a standalone subagent Session cannot be deleted.
 
 Cross-package cleanup:
 
 - The projection cache drops every row for the id after the log deletion commits.
-- `session-query` drops its indexed rows on a new `session/deleted` event; a backend that misses the event drops them on the next rescan, so deletion stays correct without an index.
+- `session-query` may drop its indexed rows on the `session/deleted` event; until it subscribes, a rescan repairs the derived index, so storage deletion stays correct without it.
 - Attachments stay: they are content-addressed and may be shared by other Sessions or still-open reads. A separate retention job owns orphaned attachment objects.
 - Titles, stats, and checkpoints live in the projection cache and disappear with it.
 
-ACP advertises `sessionCapabilities.delete: {}` and implements `session/delete`: validate an inactive non-subagent root Session with the request workspace, call `remove`, and return `{}`. The client learns the Session is gone from the response and the next `session/list`.
+`session/deleted` is a host service event emitted by the persistence provider after the artifact disappears, never a Session log event: the log is the thing being removed. ACP advertises `sessionCapabilities.delete: {}` and implements `session/delete`: refuse an active member, validate a non-subagent root, delete every persisted descendant child-first, and return `{}`.
 
 ## Alternatives considered
 
@@ -44,21 +44,9 @@ ACP advertises `sessionCapabilities.delete: {}` and implements `session/delete`:
 
 **Route deletion exclusively through `session-query`.** Rejected: the query index is derived and optional; storage must remain correct without it.
 
-## Open questions
+## Consequences
 
-- Should `session/deleted` be a durable Session event on the root log (wrong: the log is being removed) or a host service event emitted by the persistence provider? The latter keeps storage and indexing decoupled.
-- Should the Web surface deletion in the same change, or only ACP first?
-- How long should the trash tree be retained before the startup cleanup removes it?
-- Should deleting a root Session also delete its subagent children, or refuse while continuable children exist?
+Deletion is irreversible; the trash rename is the only recovery window, and a crash leaves an ignored `.trash` entry rather than a resurrectable Session. A cross-process lock race can delete a Session another process just started reading, so readers treat not-found as a valid outcome. The projection cache loses titles, stats, and checkpoints for the deleted tree, and `session-query` serves stale rows until it subscribes to `session/deleted` or rescans. Attachments survive as shared content-addressed objects. ACP deletes a root with its descendants child-first and refuses while any member is active.
 
-## Acceptance criteria
-
-JSONL contract tests cover deletion of every generation, not-found, another-process ownership, an open write handle, and trash recovery. Projection-cache and session-query tests cover row removal. ACP tests cover capability advertisement, successful deletion, inactive requirement, workspace mismatch, and subagent refusal. A keyless recorded snapshot covers the ACP request and response.
-
-## Risks
-
-- Deletion is irreversible: a wrong id or an eager trash cleanup destroys history. The trash rename is the only recovery window.
-- A cross-process lock race can delete a Session another process just started reading; readers must treat not-found as a valid outcome.
-- An index backend that misses `session/deleted` serves stale rows until its next rescan.
-- Deleting a root Session with live subagent children can strand their continuations; child-first disposal must precede artifact removal.
+Verification: the persistence removal contract covers successful removal from stat/list/open, not-found for absent and unmaterialized Sessions, and refusal of an active write handle; the JSONL suite covers the emitted `session/deleted` event; ACP tests cover successful deletion, the active refusal, and descendant removal. A keyless recorded snapshot remains deferred with the other ACP scenarios on the Windows checkout.
 

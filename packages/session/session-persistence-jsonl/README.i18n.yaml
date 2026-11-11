@@ -26,6 +26,9 @@
 /deepseek-ai-dsh-session-persistence-jsonl/use-this-package/on-disk-layout:
   en: e20cf32540d7c785
   zh: 67e182529e9211ca
+/deepseek-ai-dsh-session-persistence-jsonl/use-this-package/deletion:
+  en: 02afe3b0ee6d099d
+  zh: f658de45aa4443fa
 /deepseek-ai-dsh-session-persistence-jsonl/use-this-package/durability-and-crash-semantics:
   en: 96498792672f6d50
   zh: d767a9c69dced889

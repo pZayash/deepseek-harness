@@ -33,6 +33,8 @@ import {
   type CancelNotification,
   type CloseSessionRequest,
   type CloseSessionResponse,
+  type DeleteSessionRequest,
+  type DeleteSessionResponse,
   type ForkSessionRequest,
   type ForkSessionResponse,
   type InitializeRequest,
@@ -56,6 +58,7 @@ import {
 import { SessionLogOffset, type SessionEvent, type SessionHeader, type SessionId } from '@deepseek-ai/dsh-session'
 import { buildForkSeed, latestCompletedPrefixBoundary } from '@deepseek-ai/dsh-session/fork'
 import type {} from '@deepseek-ai/dsh-session-persistence'
+import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 // Side-effect type imports: declaration-merge the optional projection cache
 // service and the `title` projection key this listing reads.
 import type { SessionProjectionCache } from '@deepseek-ai/dsh-session-projection-cache'
@@ -257,7 +260,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
           loadSession: true,
           mcpCapabilities: { http: true },
           promptCapabilities: { image: imagePromptEnabled, audio: false, embeddedContext: false },
-          sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
+          sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {}, delete: {} },
         },
         authMethods: [],
       }
@@ -462,6 +465,59 @@ export function apply(ctx: Context, config: AcpConfig): void {
       }
     },
 
+    async deleteSession(params: DeleteSessionRequest, signal: AbortSignal): Promise<DeleteSessionResponse> {
+      assertOpen()
+      const targetId = brandString<SessionId>(params.sessionId)
+      if (sessions.has(targetId) || activating.has(targetId) || ctx.sessions.get(targetId) !== undefined) {
+        throw invalidParams(`session is active: ${targetId}`)
+      }
+      const listed = await persistence.list({ signal })
+      const target = listed.find(({ header }) => header.id === targetId)?.header
+      if (target === undefined || target.origin === 'subagent') {
+        throw invalidParams(`session is not deletable: ${targetId}`)
+      }
+      // A root Session owns its continuable descendants; delete them child-first
+      // so no orphan names a missing parent.
+      const children = new Map<SessionId, SessionId[]>()
+      for (const { header } of listed) {
+        if (header.parentSession === undefined) continue
+        const bucket = children.get(header.parentSession) ?? []
+        bucket.push(header.id)
+        children.set(header.parentSession, bucket)
+      }
+      const order: SessionId[] = []
+      const seen = new Set<SessionId>()
+      const visit = (id: SessionId): void => {
+        if (seen.has(id)) return
+        seen.add(id)
+        for (const child of children.get(id) ?? []) visit(child)
+        order.push(id)
+      }
+      visit(targetId)
+      for (const id of order) {
+        if (sessions.has(id) || activating.has(id) || ctx.sessions.get(id) !== undefined) {
+          throw invalidParams(`session is active: ${id}`)
+        }
+      }
+      const cache = ctx.get('sessionProjectionCache')
+      for (const id of order) {
+        try {
+          await persistence.remove(id, { signal })
+        } catch (error: unknown) {
+          // A descendant already removed by another process is not a failure;
+          // the addressed root must disappear as requested.
+          if (id !== targetId && error instanceof SessionPersistenceNotFoundError) continue
+          throw error
+        }
+        if (cache !== undefined) {
+          await cache.remove(id).catch((error: unknown) => {
+            logger.warn(`acp: projection cache cleanup failed for "${id}": ${errorChain(error)}`)
+          })
+        }
+      }
+      return {}
+    },
+
     async listSessions(params: ListSessionsRequest, signal: AbortSignal): Promise<ListSessionsResponse> {
       assertOpen()
       if (params.cwd !== undefined && params.cwd !== null && !isAbsolute(params.cwd)) {
@@ -573,6 +629,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     .onRequest(methods.agent.session.load, ({ params, signal }) => implementation.loadSession(params, signal))
     .onRequest(methods.agent.session.fork, ({ params, signal }) => implementation.forkSession(params, signal))
     .onRequest(methods.agent.session.close, ({ params }) => implementation.closeSession(params))
+    .onRequest(methods.agent.session.delete, ({ params, signal }) => implementation.deleteSession(params, signal))
     .onRequest(methods.agent.session.setConfigOption, ({ params, signal }) => implementation.setSessionConfigOption(params, signal))
     .onRequest(methods.agent.session.prompt, ({ params, signal }) => implementation.prompt(params, signal))
     .onNotification(methods.agent.session.cancel, ({ params }) => implementation.cancel(params))

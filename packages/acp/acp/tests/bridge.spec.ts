@@ -57,7 +57,7 @@ describe('automation-only ACP bridge', () => {
         loadSession: true,
         mcpCapabilities: { http: true },
         promptCapabilities: { image: false, audio: false, embeddedContext: false },
-        sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
+        sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {}, delete: {} },
       },
       authMethods: [],
     })
