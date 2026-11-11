@@ -39,6 +39,8 @@ import {
   type InitializeResponse,
   type ListSessionsRequest,
   type ListSessionsResponse,
+  type LoadSessionRequest,
+  type LoadSessionResponse,
   type NewSessionRequest,
   type NewSessionResponse,
   type PromptRequest,
@@ -155,6 +157,30 @@ export function apply(ctx: Context, config: AcpConfig): void {
     return record
   }
 
+  /**
+   * Read one inactive persisted root session's header and complete log.
+   * @param sessionId - persisted session to read.
+   * @param signal - request cancellation.
+   * @param verb - protocol-facing capability word for the refusal detail.
+   * @returns the authoritative header and the complete log in seq order.
+   */
+  const readStoredLog = async (
+    sessionId: SessionId,
+    signal: AbortSignal,
+    verb: 'forkable' | 'loadable',
+  ): Promise<{ header: SessionHeader; events: readonly SessionEvent[] }> => {
+    const header = (await persistence.stat(sessionId, { signal }))?.header
+    if (header === undefined || header.origin === 'subagent') {
+      throw invalidParams(`session is not ${verb}: ${sessionId}`)
+    }
+    const source = await persistence.open(sessionId, 'read', { signal })
+    try {
+      return { header, events: (await source.read(undefined, undefined, { signal })).events }
+    } finally {
+      await source.close()
+    }
+  }
+
   /** Send one ordered protocol update while containing transport-only failure. */
   const notify = async (notification: SessionNotification): Promise<void> => {
     try {
@@ -228,6 +254,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
         protocolVersion: PROTOCOL_VERSION,
         agentInfo: { name: 'deepseek-harness-acp', version: agentVersion },
         agentCapabilities: {
+          loadSession: true,
           mcpCapabilities: { http: true },
           promptCapabilities: { image: imagePromptEnabled, audio: false, embeddedContext: false },
           sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
@@ -334,6 +361,53 @@ export function apply(ctx: Context, config: AcpConfig): void {
       })().finally(() => { activating.delete(sessionId) })
     },
 
+    async loadSession(params: LoadSessionRequest, signal: AbortSignal): Promise<LoadSessionResponse> {
+      assertOpen()
+      validateWorkspaceParams(params)
+      const sessionId = brandString<SessionId>(params.sessionId)
+      if (sessions.has(sessionId) || activating.has(sessionId) || ctx.sessions.get(sessionId) !== undefined) {
+        throw invalidParams(`session is already active: ${sessionId}`)
+      }
+      activating.add(sessionId)
+      return (async (): Promise<LoadSessionResponse> => {
+        const { header, events } = await readStoredLog(sessionId, signal, 'loadable')
+        if (!await sameDirectory(header.cwd, params.cwd)) {
+          throw invalidParams(`session cwd does not match: ${params.cwd}`)
+        }
+        let record: AcpSession
+        try {
+          record = await AcpSession.resume(ctx, {
+            sessionId,
+            cwd: params.cwd,
+            mcpServers: params.mcpServers,
+            agentOptions: agentOptions(config),
+            signal,
+            notify,
+          })
+        } catch (error: unknown) {
+          if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
+          throw error
+        }
+        /* v8 ignore next 4 -- a real stdio close can race an in-flight load. */
+        if (closed) {
+          await record.close('connection closed during session/load')
+          throw internalError('connection closed during session/load')
+        }
+        sessions.set(sessionId, record)
+        try {
+          // Replay drains before the response, so the client rebuilds the
+          // conversation before it starts issuing prompts.
+          await record.replayHistory(events)
+          assertOpen()
+          return { configOptions: await record.configOptions(signal) }
+        } catch (error: unknown) {
+          sessions.delete(sessionId)
+          await record.close('session/load replay failed')
+          throw error
+        }
+      })().finally(() => { activating.delete(sessionId) })
+    },
+
     async forkSession(params: ForkSessionRequest, signal: AbortSignal): Promise<ForkSessionResponse> {
       assertOpen()
       validateWorkspaceParams(params)
@@ -348,19 +422,9 @@ export function apply(ctx: Context, config: AcpConfig): void {
       } else if (ctx.sessions.get(sourceId) !== undefined) {
         throw invalidParams(`session is active outside this bridge: ${sourceId}`)
       }
-      const persisted = (await persistence.stat(sourceId, { signal }))?.header
-      if (persisted === undefined || persisted.origin === 'subagent') {
-        throw invalidParams(`session is not forkable: ${sourceId}`)
-      }
-      if (!await sameDirectory(persisted.cwd, params.cwd)) {
+      const { header, events } = await readStoredLog(sourceId, signal, 'forkable')
+      if (!await sameDirectory(header.cwd, params.cwd)) {
         throw invalidParams(`session cwd does not match: ${params.cwd}`)
-      }
-      const source = await persistence.open(sourceId, 'read', { signal })
-      let events: readonly SessionEvent[]
-      try {
-        events = (await source.read(undefined, undefined, { signal })).events
-      } finally {
-        await source.close()
       }
       const boundary = latestCompletedPrefixBoundary(events)
       if (boundary === undefined) {
@@ -506,6 +570,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     .onRequest(methods.agent.session.new, ({ params, signal }) => implementation.newSession(params, signal))
     .onRequest(methods.agent.session.list, ({ params, signal }) => implementation.listSessions(params, signal))
     .onRequest(methods.agent.session.resume, ({ params, signal }) => implementation.resumeSession(params, signal))
+    .onRequest(methods.agent.session.load, ({ params, signal }) => implementation.loadSession(params, signal))
     .onRequest(methods.agent.session.fork, ({ params, signal }) => implementation.forkSession(params, signal))
     .onRequest(methods.agent.session.close, ({ params }) => implementation.closeSession(params))
     .onRequest(methods.agent.session.setConfigOption, ({ params, signal }) => implementation.setSessionConfigOption(params, signal))

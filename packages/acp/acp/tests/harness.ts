@@ -12,6 +12,8 @@ import {
   type Agent as AcpAgent,
   type ForkSessionRequest,
   type ForkSessionResponse,
+  type LoadSessionRequest,
+  type LoadSessionResponse,
   type PromptRequest,
   type PromptResponse,
   type RequestPermissionRequest,
@@ -192,6 +194,7 @@ interface BridgeClient {
   newSession: NonNullable<AcpAgent['newSession']>
   listSessions: NonNullable<AcpAgent['listSessions']>
   resumeSession: NonNullable<AcpAgent['resumeSession']>
+  loadSession: (params: LoadSessionRequest) => Promise<LoadSessionResponse>
   forkSession: (params: ForkSessionRequest) => Promise<ForkSessionResponse>
   closeSession: NonNullable<AcpAgent['closeSession']>
   setSessionConfigOption: NonNullable<AcpAgent['setSessionConfigOption']>
@@ -317,6 +320,7 @@ export async function makeBridgeHarness(options: {
     newSession: params => client.request(methods.agent.session.new, params),
     listSessions: params => client.request(methods.agent.session.list, params),
     resumeSession: params => client.request(methods.agent.session.resume, params),
+    loadSession: params => client.request(methods.agent.session.load, params),
     forkSession: params => client.request(methods.agent.session.fork, params),
     closeSession: params => client.request(methods.agent.session.close, params),
     setSessionConfigOption: params => client.request(methods.agent.session.setConfigOption, params),

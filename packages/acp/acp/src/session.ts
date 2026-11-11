@@ -27,6 +27,7 @@ import { turnEndToStopReason } from './codec.ts'
 import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModeControl, MODE_CONFIG_ID } from './mode-control.ts'
 import { AcpModelControl } from './model-control.ts'
+import { replayUpdates } from './replay.ts'
 import { assistantUpdates, planUpdate, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
 /** Subagent completion and teardown without depending on the subagent package. */
@@ -257,6 +258,29 @@ export class AcpSession {
     }
     const options = await this.modelControl.set(configId, value, signal)
     return this.modeControl === undefined ? options : [...options, ...this.modeControl.options()]
+  }
+
+  /**
+   * Replay one committed session log as ordered standard updates.
+   * Delivery is serialized on the session's update chain and drained before the
+   * caller answers `session/load`, so the client reconstructs the conversation
+   * in commit order and never observes a partial replay.
+   * @param events - complete persisted session log in seq order.
+   */
+  async replayHistory(events: readonly SessionEvent[]): Promise<void> {
+    this.assertActive()
+    const updates = await replayUpdates(this.ctx, this.agent, events)
+    for (const update of updates) {
+      const previous = this.outputTail
+      this.outputTail = previous
+        .then(() => this.notify({ sessionId: this.agent.session.id, update }))
+        /* v8 ignore start -- the bridge notifier contains transport failure. */
+        .catch((error: unknown) => {
+          this.ctx.logger.warn(`acp: replay update failed: ${errorChain(error)}`)
+        })
+      /* v8 ignore stop */
+    }
+    await this.drainUpdates()
   }
 
   /** Resolve topology state off-chain, then serialize its notification without blocking execution updates. */

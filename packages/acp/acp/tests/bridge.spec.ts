@@ -54,6 +54,7 @@ describe('automation-only ACP bridge', () => {
       protocolVersion: PROTOCOL_VERSION,
       agentInfo: { name: 'deepseek-harness-acp', version },
       agentCapabilities: {
+        loadSession: true,
         mcpCapabilities: { http: true },
         promptCapabilities: { image: false, audio: false, embeddedContext: false },
         sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
