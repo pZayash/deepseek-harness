@@ -33,6 +33,8 @@ import {
   type CancelNotification,
   type CloseSessionRequest,
   type CloseSessionResponse,
+  type ForkSessionRequest,
+  type ForkSessionResponse,
   type InitializeRequest,
   type InitializeResponse,
   type ListSessionsRequest,
@@ -49,8 +51,13 @@ import {
   type SessionNotification,
   type Stream,
 } from '@agentclientprotocol/sdk'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset, type SessionEvent, type SessionHeader, type SessionId } from '@deepseek-ai/dsh-session'
+import { buildForkSeed, latestCompletedPrefixBoundary } from '@deepseek-ai/dsh-session/fork'
 import type {} from '@deepseek-ai/dsh-session-persistence'
+// Side-effect type imports: declaration-merge the optional projection cache
+// service and the `title` projection key this listing reads.
+import type { SessionProjectionCache } from '@deepseek-ai/dsh-session-projection-cache'
+import type {} from '@deepseek-ai/dsh-session-title'
 // Side-effect type import: declaration-merges the approval waterfall answered below.
 import type {} from '@deepseek-ai/dsh-user-approval'
 // Side-effect type import: declaration-merges the optional `ctx.permissionPresets`
@@ -223,7 +230,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
         agentCapabilities: {
           mcpCapabilities: { http: true },
           promptCapabilities: { image: imagePromptEnabled, audio: false, embeddedContext: false },
-          sessionCapabilities: { close: {}, list: {}, resume: {} },
+          sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
         },
         authMethods: [],
       }
@@ -327,6 +334,70 @@ export function apply(ctx: Context, config: AcpConfig): void {
       })().finally(() => { activating.delete(sessionId) })
     },
 
+    async forkSession(params: ForkSessionRequest, signal: AbortSignal): Promise<ForkSessionResponse> {
+      assertOpen()
+      validateWorkspaceParams(params)
+      const sourceId = brandString<SessionId>(params.sessionId)
+      if (activating.has(sourceId)) throw invalidParams(`session is already activating: ${sourceId}`)
+      const live = sessions.get(sourceId)
+      if (live !== undefined) {
+        // Fork needs the complete committed prefix. Flush the bridge-owned
+        // session so its durable log includes every event the client observed,
+        // then read that log through the same path as an inactive source.
+        await ctx.sessions.flush(live.agent.session)
+      } else if (ctx.sessions.get(sourceId) !== undefined) {
+        throw invalidParams(`session is active outside this bridge: ${sourceId}`)
+      }
+      const persisted = (await persistence.stat(sourceId, { signal }))?.header
+      if (persisted === undefined || persisted.origin === 'subagent') {
+        throw invalidParams(`session is not forkable: ${sourceId}`)
+      }
+      if (!await sameDirectory(persisted.cwd, params.cwd)) {
+        throw invalidParams(`session cwd does not match: ${params.cwd}`)
+      }
+      const source = await persistence.open(sourceId, 'read', { signal })
+      let events: readonly SessionEvent[]
+      try {
+        events = (await source.read(undefined, undefined, { signal })).events
+      } finally {
+        await source.close()
+      }
+      const boundary = latestCompletedPrefixBoundary(events)
+      if (boundary === undefined) {
+        throw invalidParams(`session has no completed turn to fork: ${sourceId}`)
+      }
+      const sessionId = brandString<SessionId>(randomUUID())
+      let record: AcpSession
+      try {
+        record = await AcpSession.fork(ctx, {
+          sessionId,
+          cwd: params.cwd,
+          mcpServers: params.mcpServers ?? [],
+          agentOptions: agentOptions(config),
+          seed: buildForkSeed(events, boundary),
+          inheritedEventCount: SessionLogOffset(boundary + 1),
+          signal,
+          notify,
+        })
+      } catch (error: unknown) {
+        if (error instanceof AcpMcpConfigError) throw invalidParams(error.message)
+        throw error
+      }
+      /* v8 ignore next 4 -- a real stdio close can race an in-flight fork. */
+      if (closed) {
+        await record.close('connection closed during session/fork')
+        throw internalError('connection closed during session/fork')
+      }
+      sessions.set(sessionId, record)
+      try {
+        return { sessionId, configOptions: await record.configOptions(signal) }
+      } catch (error: unknown) {
+        sessions.delete(sessionId)
+        await record.close('session/fork option discovery failed')
+        throw error
+      }
+    },
+
     async listSessions(params: ListSessionsRequest, signal: AbortSignal): Promise<ListSessionsResponse> {
       assertOpen()
       if (params.cwd !== undefined && params.cwd !== null && !isAbsolute(params.cwd)) {
@@ -339,6 +410,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
         throw invalidParams((error as Error).message)
       }
       const listed = await persistence.list({ signal })
+      const cache = ctx.get('sessionProjectionCache')
       const filtered = await Promise.all(listed.map(async ({ header }) => {
         if (
           sessions.has(header.id)
@@ -351,7 +423,13 @@ export function apply(ctx: Context, config: AcpConfig): void {
         if (params.cwd !== undefined && params.cwd !== null && !await sameDirectory(header.cwd, params.cwd)) {
           return undefined
         }
-        return { sessionId: header.id, cwd: header.cwd, createdAt: header.createdAt }
+        const title = cachedListTitle(cache, header)
+        return {
+          sessionId: header.id,
+          cwd: header.cwd,
+          createdAt: header.createdAt,
+          ...title === undefined ? {} : { title },
+        }
       }))
       const entries = filtered
         .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined)
@@ -362,7 +440,11 @@ export function apply(ctx: Context, config: AcpConfig): void {
       const page = remaining.slice(0, sessionListPageSize)
       const next = remaining.length > page.length ? page.at(-1) : undefined
       return {
-        sessions: page.map(({ sessionId, cwd }) => ({ sessionId, cwd })),
+        sessions: page.map(({ sessionId, cwd, title }) => ({
+          sessionId,
+          cwd,
+          ...title === undefined ? {} : { title },
+        })),
         ...next === undefined ? {} : { nextCursor: encodeSessionListCursor(next) },
       }
     },
@@ -424,6 +506,7 @@ export function apply(ctx: Context, config: AcpConfig): void {
     .onRequest(methods.agent.session.new, ({ params, signal }) => implementation.newSession(params, signal))
     .onRequest(methods.agent.session.list, ({ params, signal }) => implementation.listSessions(params, signal))
     .onRequest(methods.agent.session.resume, ({ params, signal }) => implementation.resumeSession(params, signal))
+    .onRequest(methods.agent.session.fork, ({ params, signal }) => implementation.forkSession(params, signal))
     .onRequest(methods.agent.session.close, ({ params }) => implementation.closeSession(params))
     .onRequest(methods.agent.session.setConfigOption, ({ params, signal }) => implementation.setSessionConfigOption(params, signal))
     .onRequest(methods.agent.session.prompt, ({ params, signal }) => implementation.prompt(params, signal))
@@ -491,6 +574,22 @@ function agentOptions(config: AcpConfig): { provider?: string; model?: string } 
 interface SessionListCursor {
   createdAt: number
   sessionId: string
+}
+
+/**
+ * Read one listed session's cached title without loading its log.
+ * @param cache - optional persisted projection cache mounted by the composition.
+ * @param header - authoritative header of the listed session.
+ * @returns the cached title, or `undefined` when no usable title row exists.
+ */
+function cachedListTitle(
+  cache: SessionProjectionCache | undefined,
+  header: SessionHeader,
+): string | undefined {
+  if (cache === undefined) return undefined
+  const value = cache.cachedSnapshot(header, ['title'])?.values.title
+    ?? cache.cachedPredecessorTitle(header)?.values.title
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 /** Resolve and validate the deployment-owned session page limit. */

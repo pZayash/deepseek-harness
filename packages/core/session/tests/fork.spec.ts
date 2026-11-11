@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, ToolCallId, createMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import SessionStore, { Session, SessionForkError, SessionId, SessionLogOffset, SessionSeq, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
+import { latestCompletedPrefixBoundary } from '@deepseek-ai/dsh-session/fork'
 import type { SessionEvent, SurfaceEvent, TurnEndReason } from '@deepseek-ai/dsh-session'
 
 declare module '@deepseek-ai/dsh-session/types' {
@@ -468,5 +469,42 @@ describe('fork boundaries around a surface replacement', () => {
       type: 'turn/end',
       data: { turn: 2, reason: { kind: 'forked' } },
     })
+  })
+})
+
+describe('latestCompletedPrefixBoundary', () => {
+  it('returns the final turn end when nothing follows it', async () => {
+    const { ctx } = await setup()
+    const source = ctx.sessions.create(SessionId('latest-turn'))
+    appendClosedTurn(source, 1)
+
+    expect(latestCompletedPrefixBoundary(source.snapshotEvents())).toBe(lastSeq(source))
+  })
+
+  it('extends through standalone events committed after the last turn', async () => {
+    const { ctx } = await setup()
+    const source = ctx.sessions.create(SessionId('standalone-after-turn'))
+    appendClosedTurn(source, 1)
+    const standalone = source.append('test/log-only', { value: 'after' })
+
+    expect(latestCompletedPrefixBoundary(source.snapshotEvents())).toBe(standalone.seq)
+  })
+
+  it('stops before a following open turn', async () => {
+    const { ctx } = await setup()
+    const source = ctx.sessions.create(SessionId('open-next-turn'))
+    appendClosedTurn(source, 1)
+    const turnEnd = source.snapshotEvents().findLast(event => event.type === 'turn/end')
+    appendOpenTurn(source, 2)
+
+    expect(latestCompletedPrefixBoundary(source.snapshotEvents())).toBe(turnEnd?.seq)
+  })
+
+  it('returns undefined without a completed turn', async () => {
+    const { ctx } = await setup()
+    const source = ctx.sessions.create(SessionId('no-turn'))
+    appendOpenTurn(source, 1)
+
+    expect(latestCompletedPrefixBoundary(source.snapshotEvents())).toBeUndefined()
   })
 })

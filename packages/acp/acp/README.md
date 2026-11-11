@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-acp` lets trusted programs automate persistent DeepSeek Harness agents through the standard [ACP](https://agentclientprotocol.com): create or resume sessions, select a model and reasoning effort, attach MCP servers, submit or cancel work, receive semantic updates, and close sessions independently. Choose it for out-of-process subagents, test runners, and scripted controllers; it intentionally omits DSH-specific presentation data and interactive UI features. Persistence supports listing, resuming, and closing sessions across process restarts, but deletion, forks, transcript replay, and additional directories are unsupported. Run `pnpm dsh --profile acp` to start the server; use `dsh-subagent-acp` as the repository client.
+`dsh-acp` lets trusted programs automate persistent DeepSeek Harness agents through the standard [ACP](https://agentclientprotocol.com): create, resume, or fork sessions, select a model and reasoning effort, attach MCP servers, submit or cancel work, receive semantic updates, and close sessions independently. Choose it for out-of-process subagents, test runners, and scripted controllers; it intentionally omits DSH-specific presentation data and interactive UI features. Persistence supports listing, resuming, forking, and closing sessions across process restarts, but deletion, transcript replay, and additional directories are unsupported. Run `pnpm dsh --profile acp` to start the server; use `dsh-subagent-acp` as the repository client.
 
 ## Table of Contents
 
@@ -61,11 +61,12 @@ One connection can run several sessions at once, each independent. The calls a c
 
 | Call | What you get |
 |---|---|
-| `initialize` | Stable ACP v1 plus `session/list`, `session/resume`, `session/close`, and Streamable HTTP MCP support; image prompts only when the durable attachment store and configured exact route support them. |
+| `initialize` | Stable ACP v1 plus `session/list`, `session/resume`, `session/fork`, `session/close`, and Streamable HTTP MCP support; image prompts only when the durable attachment store and configured exact route support them. |
 | `authenticate` | Immediate success; the server requires no authentication. |
 | `session/new` | A fresh persistent agent whose absolute workspace and stdio or HTTP MCP servers are validated before publication, plus its complete configuration-option state (model, reasoning effort, and — when the composition mounts permission presets — the `mode` preset). |
-| `session/list` | Deterministic newest-first pages of persisted, resumable root sessions; an optional absolute `cwd` filter uses physical-directory identity where possible. |
+| `session/list` | Deterministic newest-first pages of persisted, resumable root sessions with a cached title when the composition has one; an optional absolute `cwd` filter uses physical-directory identity where possible. |
 | `session/resume` | A persisted inactive session whose canonical workspace is verified before composition; its log is restored without replaying old updates. |
+| `session/fork` | A new ordinary session over the source's latest completed-turn prefix, with the request's workspace and fresh MCP mounts; an inactive persisted source is read from storage, a bridge-owned source from its in-memory log, and subagent or externally active sources are rejected. |
 | `session/close` | Quiescent cancellation, update draining, descendant disposal, persistence flush, and disposal of only the addressed Agent scope. |
 | `session/set_config_option` | A serialized update to the advertised `model`, `reasoning_effort`, or `mode`, returning the complete resulting state. |
 | `session/prompt` | Ordered text, resource links, and supported images, one prompt at a time per session; settlement follows root and descendant completion plus ordered update delivery. |
@@ -75,7 +76,7 @@ One connection can run several sessions at once, each independent. The calls a c
 
 Every update derives from committed session facts; nothing pre-commit reaches the client, so partial output never needs revoking. A `plan` update replaces the whole plan: each committed todo list rewrite becomes the complete `entries` array, and the next turn clears a plan the session already emitted.
 
-Session listing and resume admit ordinary forks, including historical logs with `parentSession`; `origin: subagent` remains excluded.
+Session listing, resume, and fork admit ordinary forks, including historical logs with `parentSession`; `origin: subagent` remains excluded. A fork copies the source's latest completed-turn prefix, so the child starts with the conversation up to that turn and never inherits an in-flight turn.
 
 A prompt remains in flight while managed descendants run, while their results trigger later root turns, and while committed output drains. Root work accepted during that output drain joins the same activity interval before completion. Its completion includes the latest root stop reason and any assistant output delivery failure; only the original prompt turn pins the model selection captured at admission. Cancellation stops the root activity present at that call and waits for that activity and its queued output. Later child messages may start autonomous work and do not delay the cancelled response; the session remains available for later prompts. Idle descendants with parked inbox messages remain resident but do not delay prompt completion. Closing the session also drains its descendants.
 
@@ -176,7 +177,7 @@ These limits define when this package is a poor fit or needs special operational
 - **One primary workspace** — additional directories remain unsupported.
 - **Raster prompt images only** — PNG, JPEG, WebP, and GIF require a durable attachment store and an exact image-capable route.
 - **MCP tools only** — MCP resources and prompts have no DSH consumer.
-- **No transcript replay or interactive extensions** — session deletion, fork, `session/load`, legacy `session/set_mode` modes, commands, terminals, client filesystem operations, and elicitation remain outside this automation surface.
+- **No transcript replay or interactive extensions** — session deletion, `session/load`, legacy `session/set_mode` modes, commands, terminals, client filesystem operations, and elicitation remain outside this automation surface.
 
 <a id="dev-note"></a>
 ### Dev Note

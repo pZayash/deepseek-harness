@@ -10,6 +10,8 @@ import {
   methods,
   ndJsonStream,
   type Agent as AcpAgent,
+  type ForkSessionRequest,
+  type ForkSessionResponse,
   type PromptRequest,
   type PromptResponse,
   type RequestPermissionRequest,
@@ -20,6 +22,7 @@ import {
 } from '@agentclientprotocol/sdk'
 import AttachmentStore, { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@deepseek-ai/dsh-attachment'
+import type { SessionProjectionCache } from '@deepseek-ai/dsh-session-projection-cache'
 import { type GenerateOptions, LlmAdapter, ReasoningEffortId, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
@@ -189,6 +192,7 @@ interface BridgeClient {
   newSession: NonNullable<AcpAgent['newSession']>
   listSessions: NonNullable<AcpAgent['listSessions']>
   resumeSession: NonNullable<AcpAgent['resumeSession']>
+  forkSession: (params: ForkSessionRequest) => Promise<ForkSessionResponse>
   closeSession: NonNullable<AcpAgent['closeSession']>
   setSessionConfigOption: NonNullable<AcpAgent['setSessionConfigOption']>
   prompt: (params: PromptRequest, options?: SendRequestOptions) => Promise<PromptResponse>
@@ -227,6 +231,7 @@ export async function makeBridgeHarness(options: {
   attachments?: boolean
   permissions?: AcpModePermissions
   persistenceRoot?: string
+  projectionCache?: Pick<SessionProjectionCache, 'cachedSnapshot' | 'cachedPredecessorTitle'>
 } = {}): Promise<BridgeHarness> {
   const adapter = new MockAdapter(options.script ?? [], options.imageCapable === true)
   const ctx = new Context()
@@ -242,6 +247,11 @@ export async function makeBridgeHarness(options: {
   // the same optional service under its real name before the bridge reads it.
   if (options.permissions !== undefined) {
     ctx.provide('permissionPresets' as string, options.permissions)
+  }
+  // The projection cache is optional in production composition; tests install a
+  // listing-only stub under its real name so session/list can be exercised.
+  if (options.projectionCache !== undefined) {
+    ctx.provide('sessionProjectionCache' as string, options.projectionCache)
   }
 
   const agentToClient = new TransformStream<Uint8Array, Uint8Array>()
@@ -307,6 +317,7 @@ export async function makeBridgeHarness(options: {
     newSession: params => client.request(methods.agent.session.new, params),
     listSessions: params => client.request(methods.agent.session.list, params),
     resumeSession: params => client.request(methods.agent.session.resume, params),
+    forkSession: params => client.request(methods.agent.session.fork, params),
     closeSession: params => client.request(methods.agent.session.close, params),
     setSessionConfigOption: params => client.request(methods.agent.session.setConfigOption, params),
     prompt: (params, options) => client.request(methods.agent.session.prompt, params, options),

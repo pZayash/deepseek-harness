@@ -56,7 +56,7 @@ describe('automation-only ACP bridge', () => {
       agentCapabilities: {
         mcpCapabilities: { http: true },
         promptCapabilities: { image: false, audio: false, embeddedContext: false },
-        sessionCapabilities: { close: {}, list: {}, resume: {} },
+        sessionCapabilities: { close: {}, list: {}, resume: {}, fork: {} },
       },
       authMethods: [],
     })
@@ -355,7 +355,7 @@ describe('automation-only ACP bridge', () => {
     })
   })
 
-  it('lists closed persisted sessions without presentation metadata', async () => {
+  it('lists closed persisted sessions without a projection cache', async () => {
     harness = await makeBridgeHarness({ script: [textResponse('answer')] })
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const created = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
@@ -848,6 +848,20 @@ describe('automation-only ACP bridge', () => {
       })).rejects.toThrow(/mcpServers/)
       expect(harness.ctx.agents.list()).toHaveLength(0)
     }
+  })
+
+  it('rolls back a new session when an MCP server fails to connect', async () => {
+    harness = await makeBridgeHarness()
+    await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
+    const missing = fileURLToPath(new URL('./no-such-mcp-server-command', import.meta.url))
+
+    await expect(harness.client.newSession({
+      cwd: process.cwd(),
+      mcpServers: [{ name: 'missing', command: missing, args: [], env: [] }],
+    })).rejects.toThrow()
+
+    expect(harness.ctx.agents.list()).toHaveLength(0)
+    await expect(harness.client.listSessions({})).resolves.toEqual({ sessions: [] })
   })
 
   it('reconnects requested MCP servers when resuming a closed session', async () => {

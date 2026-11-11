@@ -21,7 +21,7 @@ import type {} from '@deepseek-ai/dsh-permission-presets'
 // module projects onto the standard `plan` update. The producing tool is
 // optional; no plan is emitted when no composition writes one.
 import type {} from '@deepseek-ai/dsh-tool-todo'
-import { type Session, type SessionEvent, type SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset, type Session, type SessionEvent, type SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AcpContentError, admitAcpPrompt } from './content.ts'
 import { turnEndToStopReason } from './codec.ts'
 import { mountAcpMcpServers } from './mcp.ts'
@@ -61,6 +61,13 @@ export interface CreateAcpSessionOptions extends AcpSessionBuildOptions {
 /** Persisted ACP session construction inputs. */
 export interface ResumeAcpSessionOptions extends AcpSessionBuildOptions {
   sessionId: SessionId
+}
+
+/** Forked ACP session construction inputs over an exact validated source prefix. */
+export interface ForkAcpSessionOptions extends AcpSessionBuildOptions {
+  sessionId: SessionId
+  seed: readonly SessionEvent[]
+  inheritedEventCount: SessionLogOffset
 }
 
 interface InflightPrompt {
@@ -175,6 +182,25 @@ export class AcpSession {
   static async resume(ctx: Context, options: ResumeAcpSessionOptions): Promise<AcpSession> {
     const handle = await ctx.agents.resume({
       resumeSessionId: options.sessionId,
+      agentOptions: options.agentOptions,
+      signal: options.signal,
+      setup: agentCtx => composeAgent(agentCtx, options),
+    })
+    return new AcpSession(ctx, handle, options.notify)
+  }
+
+  /**
+   * Compose a forked Agent over an exact source prefix and the request's MCP clients.
+   * @param ctx - ACP plugin context with Agent, LLM, and persistence services.
+   * @param options - child identity, committed prefix, workspace, route, MCP, and notifier.
+   * @returns the fully composed per-session module.
+   */
+  static async fork(ctx: Context, options: ForkAcpSessionOptions): Promise<AcpSession> {
+    const handle = await ctx.agents.create({
+      sessionId: options.sessionId,
+      seed: options.seed,
+      inheritedEventCount: options.inheritedEventCount,
+      meta: { cwd: options.cwd, isSeeded: true },
       agentOptions: options.agentOptions,
       signal: options.signal,
       setup: agentCtx => composeAgent(agentCtx, options),

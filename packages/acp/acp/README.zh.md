@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-acp` 让受信程序通过标准 [ACP](https://agentclientprotocol.com) 自动操作持久 DeepSeek Harness agent：创建或恢复会话、选择模型与推理强度、挂载 MCP 服务器、提交或取消工作、接收语义更新，并独立关闭会话。进程外 subagent、测试运行器与脚本化控制器适合选择它；它刻意不提供 DSH 专用呈现数据与交互式 UI 功能。持久化支持跨进程重启列出、恢复与关闭会话，但不支持删除、fork、transcript（文本记录）回放与附加目录。运行 `pnpm dsh --profile acp` 可启动服务器；仓库客户端使用 `dsh-subagent-acp`。
+`dsh-acp` 让受信程序通过标准 [ACP](https://agentclientprotocol.com) 自动操作持久 DeepSeek Harness agent：创建、恢复或分叉会话、选择模型与推理强度、挂载 MCP 服务器、提交或取消工作、接收语义更新，并独立关闭会话。进程外 subagent、测试运行器与脚本化控制器适合选择它；它刻意不提供 DSH 专用呈现数据与交互式 UI 功能。持久化支持跨进程重启列出、恢复、分叉与关闭会话，但不支持删除、transcript（文本记录）回放与附加目录。运行 `pnpm dsh --profile acp` 可启动服务器；仓库客户端使用 `dsh-subagent-acp`。
 
 ## 目录
 
@@ -61,11 +61,12 @@ kind: "package-reference"
 
 | 调用 | 你会得到什么 |
 |---|---|
-| `initialize` | 稳定 ACP v1，以及 `session/list`、`session/resume`、`session/close` 与 Streamable HTTP MCP 支持；图片提示词只在持久附件存储和配置的确切路由支持时公布。 |
+| `initialize` | 稳定 ACP v1，以及 `session/list`、`session/resume`、`session/fork`、`session/close` 与 Streamable HTTP MCP 支持；图片提示词只在持久附件存储和配置的确切路由支持时公布。 |
 | `authenticate` | 立即成功；服务器不需要身份验证。 |
 | `session/new` | 全新持久 agent；其绝对工作区与 stdio 或 HTTP MCP 服务器会在发布前通过校验，并返回完整配置选项状态。 |
-| `session/list` | 按确定的新到旧顺序分页返回已持久化、可恢复的根会话；可选绝对 `cwd` 筛选会尽可能使用物理目录标识。 |
+| `session/list` | 按确定的新到旧顺序分页返回已持久化、可恢复的根会话；组合中存在标题缓存时附带缓存标题；可选绝对 `cwd` 筛选会尽可能使用物理目录标识。 |
 | `session/resume` | 恢复一个已持久化且非活跃的会话；组合前校验其规范工作区，并恢复日志但不回放旧更新。 |
+| `session/fork` | 基于源会话最近一个已完成轮次的前缀创建新的普通会话，使用请求的工作区与全新的 MCP 挂载；非活跃的持久化源从存储读取，桥拥有的源从其内存日志读取，子 agent 或由外部进程持有的活跃源会被拒绝。 |
 | `session/close` | 停稳式取消、更新 drain、后代释放、持久化 flush，并且只释放指定 Agent 作用域。 |
 | `session/set_config_option` | 串行更新公布的 `model`、`reasoning_effort` 或 `mode`，并返回完整结果状态。 |
 | `session/prompt` | 有序文本、资源链接与受支持图片，每个会话一次一个提示词；根 Agent 与后代完成且有序更新交付后才结算。 |
@@ -75,13 +76,13 @@ kind: "package-reference"
 
 每条更新都由已提交会话事实派生；未提交的内容不会到达客户端，因此客户端无需撤回部分输出。`plan` 更新整体替换计划：每次提交的 todo 列表重写都成为完整的 `entries` 数组，下一个轮次会清空本会话已发出的 plan。
 
-会话列表和恢复允许普通 fork，包括含有 `parentSession` 的历史日志；`origin: subagent` 仍被排除。
+会话列表、恢复与分叉允许普通 fork，包括含有 `parentSession` 的历史日志；`origin: subagent` 仍被排除。分叉复制源会话最近一个已完成轮次的前缀，因此子会话从该轮次之前的对话开始，绝不继承进行中的轮次。
 
 受管理后代运行期间、它们的结果触发根 Agent 后续轮次期间，以及已提交输出仍在交付期间，提示词保持进行中。输出交付期间接受的根 Agent 工作会加入同一活动区间，并在该区间完成后结算。最终结果包含最新根轮次的停止原因与所有助手输出交付错误；只有原始提示词轮次固定使用接受时捕获的模型选择。取消会停止调用时已有的根 Agent 活动，并等待该活动及其已排队输出完成。之后到达的子 Agent 消息可以启动自主工作，但不会延迟取消响应；会话仍可接受后续提示词。收件箱消息处于停放状态的空闲后代继续驻留，但不延迟提示词完成。关闭会话还会释放其后代。
 
 即使前一轮已经完成，追加 `turn/start` 或 `turn/end` 失败仍会使提示词请求失败。
 
-会话配置从实时 LLM（大语言模型）服务目录提供不透明的提供方／模型选项，并在确切模型声明推理选项时提供 `reasoning_effort`。当组合挂载权限预设时，`mode` 选择器会公布其目录——随附表提供 `read-only`、`workspace-write` 与 `danger-full-access`——切换它会立即写入随附的 sandbox mode 与审批策略。这些预设是软边界：被 sandbox 拒绝的工具可以用 `sandbox_permissions` 加 `justification` 重试该调用，这会以普通权限提示的形式到达——客户端的回答是唯一屏障。选项变更记录 Session 选择，从下一个模型步骤开始生效，包括当前轮次的后续步骤；已准备的步骤及其重试保留捕获的选择。图片准入检查准入开始时的当前选择。恢复会还原记录中的选择，即使尚未有请求使用它。ACP 客户端是受信控制器：stdio MCP 条目授权其绝对命令与环境，HTTP 条目授权其绝对 HTTP(S) URL 与 header；初始连接或发现失败会回滚尚未发布的 Agent。不支持的界面会被省略或拒绝：`session/load`、删除、fork、附加目录、SSE（Server-Sent Events）或 ACP 传输 MCP、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation。
+会话配置从实时 LLM（大语言模型）服务目录提供不透明的提供方／模型选项，并在确切模型声明推理选项时提供 `reasoning_effort`。当组合挂载权限预设时，`mode` 选择器会公布其目录——随附表提供 `read-only`、`workspace-write` 与 `danger-full-access`——切换它会立即写入随附的 sandbox mode 与审批策略。这些预设是软边界：被 sandbox 拒绝的工具可以用 `sandbox_permissions` 加 `justification` 重试该调用，这会以普通权限提示的形式到达——客户端的回答是唯一屏障。选项变更记录 Session 选择，从下一个模型步骤开始生效，包括当前轮次的后续步骤；已准备的步骤及其重试保留捕获的选择。图片准入检查准入开始时的当前选择。恢复会还原记录中的选择，即使尚未有请求使用它。ACP 客户端是受信控制器：stdio MCP 条目授权其绝对命令与环境，HTTP 条目授权其绝对 HTTP(S) URL 与 header；初始连接或发现失败会回滚尚未发布的 Agent。不支持的界面会被省略或拒绝：`session/load`、删除、附加目录、SSE（Server-Sent Events）或 ACP 传输 MCP、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation。
 
 -----
 
@@ -176,7 +177,7 @@ kind: "package-reference"
 - **仅一个主 workspace**——附加目录仍不支持。
 - **仅光栅提示词图片**——PNG、JPEG、WebP 与 GIF 要求持久附件存储及确切的图片能力路由。
 - **仅 MCP 工具**——MCP resource 与 prompt 没有 DSH 消费方。
-- **没有 transcript 回放或交互式扩展**——会话删除、fork、`session/load`、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation 仍不属于此自动化界面。
+- **没有 transcript 回放或交互式扩展**——会话删除、`session/load`、旧版 `session/set_mode` mode、命令、终端、客户端文件系统操作与 elicitation 仍不属于此自动化界面。
 
 <a id="dev-note"></a>
 ### 开发备注
