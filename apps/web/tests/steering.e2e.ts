@@ -121,7 +121,7 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     const settled = scaffold.whenTurnSettled(MODE === 'record' ? 180_000 : 30_000)
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await expect.poll(
       () => sessionEvents.some(event => event.type === 'request/context'),
       { timeout: 10_000 },
@@ -131,7 +131,7 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     // atomically moves this exact occurrence into the current turn's steering outbox.
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(STEER)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     const queuedRow = page.getByRole('listitem').filter({ hasText: STEER })
     await queuedRow.waitFor({ timeout: 10_000 })
     const steerButton = queuedRow.getByRole('button', { name: 'Steer queued message' })
@@ -276,7 +276,7 @@ describe.skipIf(MODE === 'record')('web e2e: retained steering and a post-stop m
     onTestFailed(() => saveFailureShot(page, 'web-e2e-trajectory-input-order'))
     const input = page.locator('[data-composer-input][contenteditable="true"]').first()
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await questionStarted.promise
     await expect.poll(() => requestInputs.length, { timeout: 10_000 }).toBe(1)
     await input.fill(STEER)
@@ -296,7 +296,7 @@ describe.skipIf(MODE === 'record')('web e2e: retained steering and a post-stop m
       async execute() { return null },
     }))
     await input.fill(FOLLOWUP)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await expect.poll(() => sessionEvents.filter(event => event.type === 'turn/end').length, { timeout: 10_000 }).toBe(2)
     const first = claimedMessages(sessionEvents, STEER)
     const second = claimedMessages(sessionEvents, FOLLOWUP)
@@ -398,7 +398,7 @@ describe.each(['reconnect', 'delayed-inbox'] as const)('web e2e: composer shortc
     const settled = scaffold.whenTurnSettled(30_000)
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await page.getByRole('button', { name: 'Stop generating' }).waitFor({ timeout: 10_000 })
     await expect.poll(() => sessionEvents.some(event => event.type === 'request/context'), { timeout: 10_000 }).toBe(true)
 
@@ -488,7 +488,7 @@ describe('web e2e: composer shortcut follows the swapped busy behavior', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('queues Cmd+Enter when plain Enter is configured to Steer', async () => {
+  it.skipIf(MODE === 'record')('queues Cmd+Enter when the send gesture is configured to Steer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-composer-swapped-shortcut'))
     await openSettings(page, 'en')
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -501,7 +501,7 @@ describe('web e2e: composer shortcut follows the swapped busy behavior', () => {
     const settled = scaffold.whenTurnSettled(30_000)
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await page.getByRole('button', { name: 'Stop generating' }).waitFor({ timeout: 10_000 })
 
     const queuedText = 'Queued by the complementary Cmd+Enter shortcut.'
@@ -586,17 +586,17 @@ describe('web e2e: empty-draft Cmd+Enter steers the whole queue', () => {
     // question-composer takeover cannot race queue publication or the shortcut.
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(PROMPT)
-    await input.press('Enter')
-    // The turn must report busy before the next two sends: Enter's queue gesture
-    // resolved against a not-yet-running agent admits the message into the turn
-    // instead of publishing a Queue row.
+    await input.press('ControlOrMeta+Alt+Enter')
+    // The turn must report busy before the next two sends: the send gesture's
+    // queue mode resolved against a not-yet-running agent admits the message
+    // into the turn instead of publishing a Queue row.
     await page.getByRole('button', { name: 'Stop generating' }).waitFor({ timeout: 10_000 })
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(STEER_ONE)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(STEER_TWO)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     const dock = page.locator('[data-queue-dock]')
     // Both messages queued: the two-row dock is collapsed, so it renders the
     // count header and no rows. Expand it through the header, then assert each

@@ -30,7 +30,7 @@ it('keeps a send in the composer until the Host accepts it and then shows the me
     clipboardData: { items: [], getData: () => '回显这条消息' },
   })
   await waitFor(() => { expect(composer.textContent).toBe('回显这条消息') })
-  fireEvent.keyDown(composer, { key: 'Enter' })
+  fireEvent.keyDown(composer, { key: 'Enter', ctrlKey: true, altKey: true })
 
   // Synchronously after the keystroke, before the prompt is even serialized
   // (it starts after a paint yield): the draft and its image stay in the

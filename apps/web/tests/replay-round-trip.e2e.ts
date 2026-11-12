@@ -125,21 +125,23 @@ describe('web e2e: fresh round trip through the real assembly', () => {
     try {
       await input.fill(PROMPT)
       const admitted = page.waitForResponse('**/api/session/prompt')
+      // The default send gesture: Cmd+Alt+Enter on macOS, Ctrl+Alt+Enter elsewhere.
+      const sendChord = process.platform === 'darwin' ? { metaKey: true, altKey: true } : { ctrlKey: true, altKey: true }
       const [echoSnapshot, response] = await Promise.all([
-        input.evaluate(async (element, prompt) => {
+        input.evaluate(async (element, args) => {
           element.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'Enter', code: 'Enter', bubbles: true, cancelable: true,
+            key: 'Enter', code: 'Enter', bubbles: true, cancelable: true, ...args.chord,
           }))
           // sendSession registered its paint yield first. This frame observes the
           // composer holding the message while the Host has not accepted it yet.
           await new Promise<void>((resolve) => { requestAnimationFrame(() => { resolve() }) })
           const echo = document.querySelector<HTMLElement>('[data-submission-echo]')
           return [
-            `echo: ${echo?.textContent?.includes(prompt) === true ? prompt : '(missing)'}`,
+            `echo: ${echo?.textContent?.includes(args.prompt) === true ? args.prompt : '(missing)'}`,
             `composer: ${JSON.stringify(element.textContent ?? '')}`,
             `contenteditable: ${element.getAttribute('contenteditable')}`,
           ].join('\n')
-        }, PROMPT),
+        }, { prompt: PROMPT, chord: sendChord }),
         admitted,
       ])
       expect(await response.json()).toMatchObject({ result: { ok: true, value: { accepted: true } } })

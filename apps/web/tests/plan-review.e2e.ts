@@ -80,7 +80,7 @@ describe('web e2e: plan review takeover round trip', () => {
     await input.waitFor({ timeout: 10_000 })
     const settled = scaffold.whenTurnSettled(MODE === 'record' ? 180_000 : 30_000)
     await input.fill(LINE)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
 
     // The card takes over the input area while exit_plan_mode blocks. Its
     // presence is a STABLE waiting state (it stays until answered), so a plain
@@ -418,7 +418,7 @@ describe('web e2e: dismissed plan history', () => {
       const input = page.locator('[data-composer-input]').first()
       const settled = scaffold.whenTurnSettled(30_000)
       await input.fill(LINE)
-      await input.press('Enter')
+      await input.press('ControlOrMeta+Alt+Enter')
       const review = page.locator('[data-plan-review-key]')
       await review.waitFor({ state: 'visible' })
       await page.locator('[data-plan-preview]').waitFor({ state: 'visible' })

@@ -78,7 +78,9 @@ describe.skipIf(process.platform === 'win32')('Web sidebar shortcuts', () => {
       const composer = page.locator('[data-composer-input]')
       await composer.click()
       await page.keyboard.insertText('T5 draft remains unsent')
-      await page.keyboard.press(`${primary}+Alt+Enter`)
+      // The panel fullscreen chord pressed from the composer stays an
+      // application action: the draft is neither sent nor changed.
+      await page.keyboard.press(`${primary}+Shift+\\`)
       expect(await composer.innerText()).toContain('T5 draft remains unsent')
       const eventCount = agent.session.seq
       const panel = page.locator('[data-sidebar-right-panel][data-sidebar-right-open]')

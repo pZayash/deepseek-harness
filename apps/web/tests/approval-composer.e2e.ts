@@ -106,7 +106,7 @@ describe.each(MODE === 'record' ? ['button'] as const : ['button', 'keyboard'] a
 
     const settled = scaffold.whenTurnSettled(MODE === 'record' ? 240_000 : 60_000)
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
 
     const panel = page.locator('[data-approval-key]')
     await panel.waitFor({ timeout: MODE === 'record' ? 180_000 : 60_000 })

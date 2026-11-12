@@ -47,7 +47,7 @@
         - text: 分栏 ⌘ \
       - listitem:
         - button "修改面板全屏／退出全屏快捷键"
-        - text: 面板全屏／退出全屏 ⌥ ⌘ Enter
+        - text: 面板全屏／退出全屏 ⇧ ⌘ \
       - listitem:
         - button "修改刷新当前页面快捷键"
         - text: 刷新当前页面 暂无快捷键
@@ -59,8 +59,8 @@
     - list:
       - listitem: 使用互补的 Queue／Steer 方式 ⌘ Enter
       - listitem: 打开引用菜单 @
-      - listitem: 换行 ⇧ Enter
-      - listitem: 发送消息 Enter
+      - listitem: 换行 Enter
+      - listitem: 发送消息 ⌥ ⌘ Enter
       - listitem: 打开命令菜单 /
       - listitem: 停止生成 Esc Esc
   - region "菜单与弹层":

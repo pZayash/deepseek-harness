@@ -63,7 +63,7 @@ async function openWorkspace(
   const settled = scaffold.whenTurnSettled()
   const input = page.locator('[data-composer-input]').first()
   await input.fill('Reply with the single word LIGHTHOUSE and stop.')
-  await input.press('Enter')
+  await input.press('ControlOrMeta+Alt+Enter')
   const session = await settled
   const cwd = scaffold.ctx.agents.get(session)?.session.header.cwd
   if (cwd === undefined) throw new Error('Session has no workspace')

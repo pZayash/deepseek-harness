@@ -128,7 +128,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     await input.waitFor({ timeout: 10_000 })
     const settled = scaffold!.whenTurnSettled(timeoutMs)
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     return { settled }
   }
 

@@ -37,6 +37,8 @@ import { ComposerSubmissionPolicy } from './input/submission-policy.ts'
 import { queueDockEntry } from './queue/QueueDock.tsx'
 import { EnterBehaviorRow } from './settings/EnterBehaviorRow.tsx'
 import type { EnterBehaviorRowInjected } from './settings/EnterBehaviorRow.tsx'
+import { SendGestureRow } from './settings/SendGestureRow.tsx'
+import type { SendGestureRowInjected } from './settings/SendGestureRow.tsx'
 import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { ConversationContent } from './skeleton/ConversationContent.tsx'
 import { ConversationPanel } from './skeleton/ConversationPanel.tsx'
@@ -49,6 +51,7 @@ import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { createViewPins } from './view-pins.ts'
 import { en, ja, es, fr, de, ru, pt, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
+import type { SendGesture } from './contract/composer-submission.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -197,6 +200,17 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   ctx.slots.inject('settings.general.item', () => ctx.slots.register({
     name: 'settings.general.item',
+    id: 'composer-send-gesture',
+    order: 19,
+    locale: NS,
+    inject: (): SendGestureRowInjected => ({
+      hooks: { sendGesture: submissionPolicy.sendGesture },
+      setSendGesture: (gesture) => { submissionPolicy.setSendGesture(gesture) },
+    }),
+  }, SendGestureRow))
+
+  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
+    name: 'settings.general.item',
     id: 'composer-enter',
     order: 20,
     locale: NS,
@@ -270,11 +284,6 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   const stopShortcut = createSnapshotStore<readonly string[]>([])
   ctx.inject(['shortcuts'], (scope) => {
     const fixedInputs: readonly ShortcutFixedCommand[] = [
-      { id: 'fixed.send' as ShortcutCommandId, label: () => t('input.send'), keys: ['Enter'],
-        bindings: [{ code: 'Enter', modifiers: [] }], group: 'input' },
-      { id: 'fixed.newline' as ShortcutCommandId, label: () => t('shortcut.newline'),
-        keys: scope.shortcuts.describeBinding({ code: 'Enter', modifiers: ['shift'] }).keys,
-        bindings: [{ code: 'Enter', modifiers: ['shift'] }], group: 'input' },
       { id: 'fixed.complementary' as ShortcutCommandId, label: () => t('shortcut.complementary'),
         keys: scope.shortcuts.describeBinding({ code: 'Enter', modifiers: ['primary'] }).keys,
         bindings: [{ code: 'Enter', modifiers: ['control'] }, { code: 'Enter', modifiers: ['meta'] }], group: 'input' },
@@ -286,6 +295,40 @@ export function apply(ctx: Context, config: Config = Config({})): void {
     for (const command of fixedInputs) {
       scope.effect(() => scope.shortcuts.registerFixed(command), `ui-conversation: ${command.id}`)
     }
+    // The send and line-break rows follow the live gesture: Enter sends with
+    // Shift+Enter as the only break, or the chord sends and both Enter forms
+    // break the line.
+    const gestureRows = (gesture: SendGesture): readonly ShortcutFixedCommand[] => gesture === 'chord'
+      ? [
+        { id: 'fixed.send' as ShortcutCommandId, label: () => t('input.send'),
+          keys: scope.shortcuts.describeBinding({ code: 'Enter', modifiers: ['primary', 'alt'] }).keys,
+          bindings: [{ code: 'Enter', modifiers: ['primary', 'alt'] }], group: 'input' },
+        { id: 'fixed.newline' as ShortcutCommandId, label: () => t('shortcut.newline'),
+          keys: scope.shortcuts.describeBinding({ code: 'Enter', modifiers: [] }).keys,
+          bindings: [{ code: 'Enter', modifiers: [] }, { code: 'Enter', modifiers: ['shift'] }], group: 'input' },
+      ]
+      : [
+        { id: 'fixed.send' as ShortcutCommandId, label: () => t('input.send'), keys: ['Enter'],
+          bindings: [{ code: 'Enter', modifiers: [] }], group: 'input' },
+        { id: 'fixed.newline' as ShortcutCommandId, label: () => t('shortcut.newline'),
+          keys: scope.shortcuts.describeBinding({ code: 'Enter', modifiers: ['shift'] }).keys,
+          bindings: [{ code: 'Enter', modifiers: ['shift'] }], group: 'input' },
+      ]
+    scope.effect(() => {
+      let disposers: readonly (() => void)[] = []
+      const install = (gesture: SendGesture): void => {
+        for (const dispose of disposers) dispose()
+        disposers = gestureRows(gesture).map(row => scope.shortcuts.registerFixed(row))
+      }
+      install(submissionPolicy.sendGesture.getSnapshot())
+      const stop = submissionPolicy.sendGesture.subscribe(() => {
+        install(submissionPolicy.sendGesture.getSnapshot())
+      })
+      return () => {
+        stop()
+        for (const dispose of disposers) dispose()
+      }
+    }, 'ui-conversation: fixed send and newline inputs')
     scope.effect(() => installStopShortcut(
       scope.shortcuts, sessions, binding => uiConversation.binding(binding).openTurn, ctx.uiSession, stop,
     ), 'ui-conversation: fixed stop input')
@@ -486,6 +529,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
           hooks: {
             stopShortcut,
             busyEnter: submissionPolicy.busyEnter,
+            sendGesture: submissionPolicy.sendGesture,
             fileUploads: ABSENT_FILE_UPLOADS,
             notices: ABSENT_NOTICES,
             lexicon: ABSENT_LEXICON,
@@ -565,6 +609,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
         hooks: {
           stopShortcut,
           busyEnter: submissionPolicy.busyEnter,
+          sendGesture: submissionPolicy.sendGesture,
           fileUploads: conversation.fileUploads,
           notices: shell.notices,
           lexicon: shell.lexicon,

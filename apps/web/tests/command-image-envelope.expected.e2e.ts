@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The command attachment envelope over the BUILT client graph (real
-// bundles via AppWebEntry, keyless RemoteMock transport): an enter
+// bundles via AppWebEntry, keyless RemoteMock transport): a send
 // submission carrying composer attachments resolves only through a command whose
 // descriptor declares `input.attachments`. A non-declaring command refuses with
 // one composer error banner and everything retained; a declaring command
@@ -45,7 +45,7 @@ it('refuses an image-carrying submit to a non-declaring command and keeps draft 
 
   // /echo is a leadingInput fixture command without `input.attachments`.
   await pasteText(textarea, '/echo hello')
-  fireEvent.keyDown(textarea, { key: 'Enter' })
+  fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true, altKey: true })
 
   // The refusal rides the same transient error banner as other composer
   // failures; session activity remains on its separate status live region.
@@ -72,7 +72,7 @@ it('consumes images through a declaring command and clears the composer on succe
   // /goal declares `input.attachments` in the fixture catalog; the claim submit
   // serializes the pasted bytes and the fixture executor admits them.
   await pasteText(textarea, '/goal rebuild the cathedral')
-  fireEvent.keyDown(textarea, { key: 'Enter' })
+  fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true, altKey: true })
 
   await waitFor(() => {
     expect(textarea.textContent).toBe('')
@@ -86,9 +86,9 @@ it('submits a bare /plan with an image as an image-only plan request', async () 
   await pasteImage(textarea, 'plan-task.png')
 
   // Trailing separator: a bare '/plan' leaves the caret on the token, where
-  // the re-track opens the menu and Enter would pick instead of submit.
+  // the re-track opens the menu; the send chord bypasses it and submits.
   await pasteText(textarea, '/plan ')
-  fireEvent.keyDown(textarea, { key: 'Enter' })
+  fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true, altKey: true })
 
   await waitFor(() => {
     expect(textarea.textContent).toBe('')

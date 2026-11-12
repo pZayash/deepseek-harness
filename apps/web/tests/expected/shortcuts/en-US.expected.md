@@ -47,7 +47,7 @@
         - text: Split Ctrl + \
       - listitem:
         - button "Edit shortcut for Toggle panel fullscreen"
-        - text: Toggle panel fullscreen Ctrl + Alt + Enter
+        - text: Toggle panel fullscreen Ctrl + Shift + \
       - listitem:
         - button "Edit shortcut for Refresh current page"
         - text: Refresh current page Ctrl + Alt + R
@@ -59,8 +59,8 @@
     - list:
       - listitem: Use the complementary Queue / Steer action Ctrl + Enter
       - listitem: Open reference menu @
-      - listitem: New line Shift + Enter
-      - listitem: Send message Enter
+      - listitem: New line Enter
+      - listitem: Send message Ctrl + Alt + Enter
       - listitem: Open command menu /
       - listitem: Stop generating Esc Esc
   - region "Menus and dialogs":

@@ -41,8 +41,10 @@ export function registerSidebarShortcuts(shortcuts: Pick<Shortcuts, 'register' |
     },
   })]
   for (const kind of ['split', 'fullscreen'] as const) {
+    // Pane actions pair on Backslash; the composer owns the Enter chords its
+    // send gesture reserves.
     const binding: ShortcutBinding = kind === 'split' ? { code: 'Backslash', modifiers: ['primary'] }
-      : { code: 'Enter', modifiers: ['primary', 'alt'] }
+      : { code: 'Backslash', modifiers: ['primary', 'shift'] }
     disposers.push(shortcuts.register({
       id: (kind === 'split' ? 'pane.split' : 'pane.fullscreen.toggle') as ShortcutCommandId,
       label: () => t(kind === 'split' ? 'dock.splitPane' : 'command.fullscreen'), aliases: [kind, 'panel'],

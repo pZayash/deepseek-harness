@@ -160,7 +160,7 @@ it.skipIf(MODE === 'record')('reuses saved native Account Flash translations acr
   expect(prompts).toHaveLength(1)
   if (prompt === undefined) throw new Error('Borrowed recorded reasoning requires its canonical user prompt')
   const settled = scaffold.whenTurnSettled(), composer = page.locator('[data-composer-input]').first()
-  await composer.fill(prompt); await composer.press('Enter')
+  await composer.fill(prompt); await composer.press('ControlOrMeta+Alt+Enter')
   const auditSessionId = await settled
   resources.sessionId = auditSessionId
   await page.getByText('LIGHTHOUSE', { exact: true }).waitFor()

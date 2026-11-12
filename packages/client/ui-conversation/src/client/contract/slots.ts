@@ -20,7 +20,7 @@ import type { ComposerBlock } from './composer-blocks.ts'
 import type { DraftAttachmentId, InputActions, InputNotice, InputState } from './input.ts'
 import type { ComposerKeyboard, DraftSnapshot, EditSelection } from './draft-editor.ts'
 import type { createConversationStore } from '../stores.ts'
-import type { BusyEnterBehavior } from './composer-submission.ts'
+import type { BusyEnterBehavior, SendGesture } from './composer-submission.ts'
 import type { ConversationSnapshot } from './snapshot.ts'
 import type { ViewTab } from './views.ts'
 import type { UserTextDocumentInput, UserTextEvaluator, UserTextId, UserTextNode } from './user-text.ts'
@@ -569,10 +569,13 @@ export interface ComposerBarInjected {
     /** Readable sequence while the fixed Stop command is registered. */
     stopShortcut: ObservableSnapshot<readonly string[]>
     /**
-     * Live busy-state submission preference: the delivery mode plain Enter
-     * and the primary Send button use while the addressed agent is busy.
+     * Live busy-state submission preference: the delivery mode the primary
+     * send gesture and the primary Send button use while the addressed agent
+     * is busy.
      */
     busyEnter: ObservableSnapshot<BusyEnterBehavior>
+    /** Live gesture that sends the draft instead of breaking the line. */
+    sendGesture: ObservableSnapshot<SendGesture>
     /** Live per-draft upload states for drafts that upload when added. */
     fileUploads: ObservableSnapshot<DraftFileUploads>
     notices: ObservableSnapshot<InputNotice | null>

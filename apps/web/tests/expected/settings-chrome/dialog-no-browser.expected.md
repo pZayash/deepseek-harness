@@ -31,7 +31,9 @@
   - text: Keyboard shortcuts
   - paragraph: View and edit available shortcuts and input actions
   - button "Edit shortcuts"
-  - text: Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
+  - text: Send gesture Which keys send a message; the other keys insert a line break
+  - button "Cmd/Ctrl+Alt+Enter sends"
+  - text: Send behavior while busy What the send gesture and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
   - button "Queue"
   - text: Performance & usage Choose how much performance and usage information to show
   - button "Detailed"

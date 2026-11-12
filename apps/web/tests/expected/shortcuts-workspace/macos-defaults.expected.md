@@ -47,7 +47,7 @@
         - text: Split ⌘ \
       - listitem:
         - button "Edit shortcut for Toggle panel fullscreen"
-        - text: Toggle panel fullscreen ⌥ ⌘ Enter
+        - text: Toggle panel fullscreen ⇧ ⌘ \
       - listitem:
         - button "Edit shortcut for Refresh current page"
         - text: Refresh current page No shortcut
@@ -59,8 +59,8 @@
     - list:
       - listitem: Use the complementary Queue / Steer action ⌘ Enter
       - listitem: Open reference menu @
-      - listitem: New line ⇧ Enter
-      - listitem: Send message Enter
+      - listitem: New line Enter
+      - listitem: Send message ⌥ ⌘ Enter
       - listitem: Open command menu /
       - listitem: Stop generating Esc Esc
   - region "Menus and dialogs":

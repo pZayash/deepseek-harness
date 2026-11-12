@@ -246,7 +246,7 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     const settled = scaffold.whenTurnSettled()
     const input = page.locator('[data-composer-input]').first()
     await input.fill(PROMPT)
-    await input.press('Enter')
+    await input.press('ControlOrMeta+Alt+Enter')
     await settled
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
     expect(await paneSnapshot(page)).toEqual(blankPanes)

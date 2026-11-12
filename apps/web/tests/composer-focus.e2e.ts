@@ -213,9 +213,9 @@ it('keeps mobile submission keyboard navigation in the composer while retaining 
   for (const { engine, mobile, submission } of [
     { engine: chromium, mobile: false, submission: 'Send' },
     { engine: chromium, mobile: true, submission: 'Send' },
-    { engine: chromium, mobile: true, submission: 'Enter' },
+    { engine: chromium, mobile: true, submission: 'Chord' },
     { engine: webkit, mobile: true, submission: 'Send' },
-    { engine: webkit, mobile: true, submission: 'Enter' },
+    { engine: webkit, mobile: true, submission: 'Chord' },
   ]) {
     const scaffold = await launchWebScaffold({
       replayFixture: fileURLToPath(new URL('../../../snapshots/web/live-interactions/session.v3.jsonl', import.meta.url)),
@@ -244,7 +244,7 @@ it('keeps mobile submission keyboard navigation in the composer while retaining 
           const input = page.locator('[data-composer-input][contenteditable="true"]')
           await input.fill('Reply with a one-sentence description of event sourcing, then stop.')
           expect(await input.evaluate(element => document.activeElement === element)).toBe(true)
-          if (submission === 'Enter') await page.keyboard.press('Enter')
+          if (submission === 'Chord') await page.keyboard.press('ControlOrMeta+Alt+Enter')
           else {
             const send = page.getByRole('button', { name: 'Send message', exact: true })
             if (mobile) await send.tap()

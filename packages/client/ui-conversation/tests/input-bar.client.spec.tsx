@@ -111,6 +111,8 @@ interface BenchOptions {
   addFiles?: (files: readonly File[], directories?: ReadonlySet<File>) => string | null
   commandMenuOpen?: boolean
   busyEnter?: 'queue' | 'steer'
+  /** Send gesture served to the bar; the unmodified Enter keeps the send flows compact. */
+  sendGesture?: 'enter' | 'chord'
   toggleCommandMenu?: (selection: { start: number; end: number }) => void
 }
 
@@ -164,6 +166,7 @@ function bench(over?: BenchOptions) {
   const removeAttachment = vi.fn((id: DraftAttachmentId) => { shell.removeAttachment(id) })
   const menuLauncher = createSnapshotStore<string | null>(over?.commandMenuOpen === true ? 'command' : null)
   const busyEnter = createSnapshotStore<'queue' | 'steer'>(over?.busyEnter ?? 'queue')
+  const sendGesture = createSnapshotStore<'enter' | 'chord'>(over?.sendGesture ?? 'enter')
   const stopShortcut = createSnapshotStore<readonly string[]>(['Esc', 'Esc'])
   const slotCalls: { key: string; owner: unknown }[] = []
   const renderSlot = ((key: string, owner: object) => {
@@ -216,6 +219,7 @@ function bench(over?: BenchOptions) {
     }),
     toggleCommandMenu: over?.toggleCommandMenu ?? vi.fn(),
     useBusyEnter: bindSnapshotSelector(busyEnter),
+    useSendGesture: bindSnapshotSelector(sendGesture),
     useStopShortcut: bindSnapshotSelector(stopShortcut),
     useNotices: bindSnapshotSelector(shell.notices),
     useLexicon: bindSnapshotSelector(shell.lexicon),
@@ -1040,6 +1044,52 @@ describe('Enter semantics', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('chord send gesture', () => {
+  const chord = { key: 'Enter', ctrlKey: true, altKey: true }
+
+  it('sends on the chord while Enter and Shift+Enter stay in the draft', () => {
+    const { textarea, sink } = bench({ draft: 'hello', sendGesture: 'chord' })
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
+    expect(sink).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea, chord)
+    expect(sink).toHaveBeenCalledWith(expect.stringMatching(/^hello/u), [], 'queue', expect.any(AbortSignal), expect.any(Function))
+  })
+
+  it('follows the busy delivery preference, leaving Cmd/Ctrl+Enter as its complement', () => {
+    const queued = bench({ draft: 'hello', running: true, busyEnter: 'queue', sendGesture: 'chord' })
+    fireEvent.keyDown(queued.textarea, chord)
+    expect(queued.sink).toHaveBeenCalledWith('hello', [], 'queue', expect.any(AbortSignal), expect.any(Function))
+
+    const steered = bench({ draft: 'hello', running: true, busyEnter: 'steer', sendGesture: 'chord' })
+    fireEvent.keyDown(steered.textarea, chord)
+    expect(steered.sink).toHaveBeenCalledWith('hello', [], 'steer', expect.any(AbortSignal), expect.any(Function))
+    const complement = bench({ draft: 'hello', running: true, busyEnter: 'steer', sendGesture: 'chord' })
+    fireEvent.keyDown(complement.textarea, { key: 'Enter', metaKey: true })
+    expect(complement.sink).toHaveBeenCalledWith('hello', [], 'queue', expect.any(AbortSignal), expect.any(Function))
+  })
+
+  it('suppresses repeat, empty drafts, composition, and locked composers', () => {
+    const empty = bench({ sendGesture: 'chord' })
+    fireEvent.keyDown(empty.textarea, chord)
+    expect(empty.sink).not.toHaveBeenCalled()
+
+    const locked = bench({ draft: 'hello', disabled: true, sendGesture: 'chord' })
+    fireEvent.keyDown(locked.textarea, chord)
+    expect(locked.sink).not.toHaveBeenCalled()
+
+    const composing = bench({ draft: 'hello', sendGesture: 'chord' })
+    fireEvent.compositionStart(composing.textarea)
+    fireEvent.keyDown(composing.textarea, chord)
+    expect(composing.sink).not.toHaveBeenCalled()
+
+    const repeated = bench({ draft: 'hello', sendGesture: 'chord' })
+    fireEvent.keyDown(repeated.textarea, chord)
+    fireEvent.keyDown(repeated.textarea, { ...chord, repeat: true })
+    expect(repeated.sink).toHaveBeenCalledTimes(1)
   })
 })
 

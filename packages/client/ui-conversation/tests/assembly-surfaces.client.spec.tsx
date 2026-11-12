@@ -232,7 +232,8 @@ describe('prompt rejection through the assembled composer', () => {
     const conversation = runtime.ctx.get('conversation') as { input: unknown }
     const shell = (conversation.input as InputHub).shell(SID)
     act(() => { shell.setDraft('do not lose this') })
-    fireEvent.keyDown(composer, { key: 'Enter' })
+    // The shipped default send gesture is the explicit chord.
+    fireEvent.keyDown(composer, { key: 'Enter', ctrlKey: true, altKey: true })
     await waitFor(() => { expect(prompt).toHaveBeenCalledOnce() })
 
     await runtime.sessions.updateSessionSnapshot(SID, (draft) => {

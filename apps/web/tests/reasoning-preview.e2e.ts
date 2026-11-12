@@ -61,7 +61,7 @@ it.each(['plain', 'signature'])('shows completed paragraph first lines with a ri
       const input = page.locator('[data-composer-input]').first()
       const settled = scaffold.whenTurnSettled()
       await writeComposerDraft(page, input, 'Show a streamed reasoning preview.')
-      await input.press('Enter')
+      await input.press('ControlOrMeta+Alt+Enter')
 
       const [first, second, third, fourth] = adapter.stages
       if (first === undefined || second === undefined || third === undefined || fourth === undefined) {

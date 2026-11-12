@@ -1,10 +1,16 @@
 /**
  * Composer keymap over the Lexical command layer: menu arbitration
- * (arrows/escape/enter), space adjudication, the Enter submit gesture, and
- * paste routing. Registered at CRITICAL priority so it decides before
+ * (arrows/escape/enter), space adjudication, the send gesture, and paste
+ * routing. Registered at CRITICAL priority so it decides before
  * @lexical/plain-text's own Enter/paste defaults; a handler returning false
- * falls through to those defaults (Shift+Enter's line break, ordinary
- * spaces, text paste the bar routes itself).
+ * falls through to those defaults (the line break, ordinary spaces, text
+ * paste the bar routes itself).
+ *
+ * The live send gesture decides which Enter commits the draft: `enter`
+ * submits on the unmodified key with Shift+Enter as the line break, while
+ * `chord` sends on Cmd+Alt+Enter on macOS and Ctrl+Alt+Enter elsewhere and
+ * leaves Enter itself to the editor's line break. Cmd/Ctrl+Enter keeps its
+ * fixed complementary-delivery meaning in both gestures.
  *
  * IME guard: a composition-closing Enter/Space must not submit or adjudicate.
  * KeyboardEvent.isComposing covers most engines; Safari delivers the closing
@@ -23,6 +29,7 @@ import {
 } from 'lexical'
 import { mergeRegister } from '@lexical/utils'
 import type { ArbitrateKey, ArbitrateOutcome } from '../../contract/draft-editor.ts'
+import type { SendGesture } from '../../contract/composer-submission.ts'
 import { $isQuoteNode } from './QuoteNode.tsx'
 
 /** The bar-supplied behavior behind each intercepted gesture. */
@@ -33,10 +40,12 @@ export interface ComposerKeymapHandlers {
   space(): boolean
   /** Dismiss the popupSelect shell (Escape layering: an open overlay closes first). */
   dismissPopup(): void
-  /** Whether Enter may submit right now (locked/busy states refuse). */
+  /** Whether a send may run right now (locked/busy states refuse). */
   canSubmit(): boolean
-  /** Plain Enter submits; exactly Ctrl+Enter or Cmd+Enter selects accelerated delivery. */
+  /** Commit the draft; `accelerated` selects the complementary delivery mode. */
   submit(accelerated: boolean): void
+  /** The live gesture that sends the draft instead of breaking the line. */
+  sendGesture(): SendGesture
   /**
    * Pasted files with directory metadata supplied by the clipboard entry API.
    * @param files - browser files in clipboard order.
@@ -56,6 +65,24 @@ function isComposingEvent(event: KeyboardEvent, recentlyComposing: () => boolean
 
 function isApplePlatform(): boolean {
   return typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform)
+}
+
+/**
+ * The delivery role an Enter keydown carries under the explicit send chord.
+ * `primary` is the platform send chord (Cmd+Alt on macOS, Ctrl+Alt elsewhere),
+ * `complementary` the fixed Cmd/Ctrl+Enter complement, and `other` every
+ * remaining combination (including any Shift form), which the keymap leaves to
+ * application shortcuts.
+ * @param event - the keydown that reached the Enter command.
+ * @returns the modifier role, before any menu arbitration.
+ */
+function enterChord(event: KeyboardEvent): 'primary' | 'complementary' | 'other' {
+  if (event.shiftKey) return 'other'
+  const apple = isApplePlatform()
+  const primary = apple ? event.metaKey : event.ctrlKey
+  const other = apple ? event.ctrlKey : event.metaKey
+  if (event.altKey) return primary && !other ? 'primary' : 'other'
+  return primary !== other ? 'complementary' : 'other'
 }
 
 /** Whether the browser caret touches one side of an atomic quote element. */
@@ -255,11 +282,29 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
       return false
     }, COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(KEY_ENTER_COMMAND, (event) => {
-      // Returning true stops Lexical's fallback line break without consuming
-      // the DOM event that application shortcuts need.
-      if (event !== null && (event.altKey || event.getModifierState('AltGraph')
-        || (event.ctrlKey && event.metaKey) || (event.shiftKey && (event.ctrlKey || event.metaKey)))) return true
-      // Plain Shift+Enter keeps its native line break, including during composition.
+      const send = (accelerated: boolean): boolean => {
+        // Returning true stops Lexical's fallback line break without consuming
+        // the DOM event that application shortcuts need.
+        event?.preventDefault()
+        if (event?.repeat === true) return true // held-down Enter must not machine-gun sends
+        if (!handlers.canSubmit()) return true
+        handlers.submit(accelerated)
+        return true
+      }
+      // AltGraph composes a character on Windows layouts; no gesture owns it.
+      if (event !== null && event.getModifierState('AltGraph')) return true
+      const gesture = handlers.sendGesture()
+      // An explicit send chord delivers directly, before an open menu can claim
+      // the key; a menu's highlight stays reachable through Enter and Tab.
+      const chord = event === null || gesture === 'enter' ? 'other' : enterChord(event)
+      if (chord !== 'other') return send(chord === 'complementary')
+      // Alt combinations, both Ctrl and Cmd, and Shift plus Ctrl/Cmd leave the
+      // draft and the menu unchanged, keeping the DOM event for application
+      // shortcuts.
+      if (event !== null && (event.altKey || (event.ctrlKey && event.metaKey)
+        || (event.shiftKey && (event.ctrlKey || event.metaKey)))) return true
+      // Plain Shift+Enter keeps its native line break in both gestures,
+      // including during composition.
       if (event?.shiftKey === true) return false
       if (event !== null && isComposingEvent(event, recentlyComposing)) {
         // The IME consumes this Enter (candidate pick); neither submit nor
@@ -267,16 +312,15 @@ export function registerComposerKeymap(editor: LexicalEditor, handlers: Composer
         return true
       }
       // Menu-open Enter picks the highlight through arbitration; a
-      // no-highlight menu passes down to the submit gesture.
+      // no-highlight menu passes down to the gesture this mode owns.
       if (handlers.arbitrate('enter', false) !== 'pass') {
         event?.preventDefault()
         return true
       }
-      event?.preventDefault()
-      if (event?.repeat === true) return true // held-down Enter must not machine-gun sends
-      if (!handlers.canSubmit()) return true
-      handlers.submit(event?.ctrlKey === true || event?.metaKey === true)
-      return true
+      // Under the chord gesture the unmodified key falls through to the
+      // editor's native line break.
+      if (gesture === 'chord') return false
+      return send(event?.ctrlKey === true || event?.metaKey === true)
     }, COMMAND_PRIORITY_CRITICAL),
     editor.registerCommand(PASTE_COMMAND, (event) => {
       // Duck-typed: the payload union includes InputEvent, and test engines

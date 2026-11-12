@@ -369,7 +369,7 @@ async function sendPrompt(page: Page, scaffold: WebScaffold): Promise<{ readonly
   const settled = scaffold.whenTurnSettled()
   const composer = page.locator('[data-composer-input]').first()
   await writeComposerDraft(page, composer, prompt)
-  await composer.press('Enter')
+  await composer.press('ControlOrMeta+Alt+Enter')
   return { prompt, settled }
 }
 
@@ -579,7 +579,7 @@ it.skipIf(MODE === 'record')('starts a Session in a worktree before its first me
   const composer = page.locator('[data-composer-input]').first()
   await writeComposerDraft(page, composer, FOLLOW_UP)
   const accepted = page.waitForResponse('**/api/session/prompt')
-  await composer.press('Enter')
+  await composer.press('ControlOrMeta+Alt+Enter')
   const envelope = await (await accepted).json() as { readonly result: unknown }
   expect(envelope.result).toMatchObject({ ok: true })
   const missing = page.locator('[data-forge-missing]')
@@ -760,7 +760,7 @@ it.skipIf(MODE === 'record')('shows the local changes of the Session by scope an
   expect((await readPersistedEvents(scaffold, sessionId)).some(event => event.type === 'user/message'
     && event.data.content.some(block => block.type === 'text' && block.text.includes('## User Comment')))).toBe(false)
   const reviewed = scaffold.whenTurnSettled()
-  await page.locator('[data-composer-input]').first().press('Enter')
+  await page.locator('[data-composer-input]').first().press('ControlOrMeta+Alt+Enter')
   await reviewed
   await page.getByText(FOLLOW_UP_REPLY, { exact: true }).waitFor()
   const comments = (await readPersistedEvents(scaffold, sessionId)).flatMap(event => event.type === 'user/message'

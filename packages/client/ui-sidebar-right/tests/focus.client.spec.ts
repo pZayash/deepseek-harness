@@ -439,6 +439,8 @@ describe('sidebar keyboard commands', () => {
     const gesture = { code: 'KeyB', meta: platform === 'macos', control: platform === 'windows', alt: true,
       shift: false, repeat: false, composing: false, defaultPrevented: false }
     const context = { target: null, region: 'editable' as const, modal: null }
+    // Pane fullscreen pairs with split on Backslash and adds Shift.
+    const fullscreen = { ...gesture, code: 'Backslash', alt: false, shift: true }
     expect(registry.dispatch(gesture, context, consume).status).toBe('handled')
     expect(h.layout().expanded).toBe(false)
     expect(registry.dispatch({ ...gesture, code: 'Backslash', alt: false }, context, consume).status).toBe('blocked')
@@ -446,16 +448,16 @@ describe('sidebar keyboard commands', () => {
     expect(h.layout().expanded).toBe(false)
     registry.dispatch(gesture, context, consume)
     expect(h.layout().expanded).toBe(true)
-    expect(registry.dispatch({ ...gesture, code: 'Enter' }, context, consume).status).toBe('blocked')
+    expect(registry.dispatch(fullscreen, context, consume).status).toBe('blocked')
     expect(h.layout().mode).toBe('push')
     const focused = { ...context, target: h.paneElement() }
-    registry.dispatch({ ...gesture, code: 'Enter' }, focused, consume)
+    registry.dispatch(fullscreen, focused, consume)
     expect(h.layout().mode).toBe('fullscreen')
-    registry.dispatch({ ...gesture, code: 'Enter' }, { ...focused, modal: 'settings' }, consume)
+    registry.dispatch(fullscreen, { ...focused, modal: 'settings' }, consume)
     expect(h.layout().mode).toBe('push')
-    registry.dispatch({ ...gesture, code: 'Enter', composing: true }, focused, consume)
+    registry.dispatch({ ...fullscreen, composing: true }, focused, consume)
     expect(h.layout().mode).toBe('push')
-    registry.dispatch({ ...gesture, code: 'Enter' }, focused, consume)
+    registry.dispatch(fullscreen, focused, consume)
     expect(h.layout().mode).toBe('fullscreen')
   })
 
@@ -516,8 +518,8 @@ describe('sidebar keyboard commands', () => {
   })
 
   it.each([
-    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Alt+Meta+Enter', 'Alt+Meta+W', undefined] },
-    { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Alt+Enter', 'Control+Alt+W', 'Control+Alt+R'] },
+    { platform: 'macos', keys: ['Shift+Meta+B', 'Meta+\\', 'Shift+Meta+\\', 'Alt+Meta+W', undefined] },
+    { platform: 'windows', keys: ['Control+Shift+B', 'Control+\\', 'Control+Shift+\\', 'Control+Alt+W', 'Control+Alt+R'] },
     { platform: 'linux', keys: [undefined, undefined, undefined, undefined, undefined] },
   ] as const)('publishes the Web defaults and unbound commands on $platform', ({ platform, keys }) => {
     const h = harness()

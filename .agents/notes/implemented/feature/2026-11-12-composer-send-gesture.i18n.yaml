@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-12-composer-send-gesture.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-11-12-composer-send-gesture.md
+/agent-note-the-composer-sends-on-a-stored-gesture:
+  en: ccbf234945634fcb
+  zh: 1584cf6435820f39
+/agent-note-the-composer-sends-on-a-stored-gesture/problem:
+  en: c9668e33ea02d6ea
+  zh: 3307877ee27f7400
+/agent-note-the-composer-sends-on-a-stored-gesture/decision:
+  en: a5d7295f9812d0a5
+  zh: c99be2830dd4e6b3
+/agent-note-the-composer-sends-on-a-stored-gesture/alternatives-considered:
+  en: 9dd36c62c42a5130
+  zh: 540fe4da63482d9b
+/agent-note-the-composer-sends-on-a-stored-gesture/consequences:
+  en: 4fac1a1c6fccc55c
+  zh: a41cb3b7c363a016
+/agent-note-the-composer-sends-on-a-stored-gesture/related-decisions:
+  en: 33ae97316e378b8f
+  zh: 131dc3698117b5fc
