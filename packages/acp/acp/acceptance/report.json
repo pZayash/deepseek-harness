@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-11-12T08:38:57.208Z",
+  "repoRoot": "C:\\!Pavl0\\GitHub\\pzayash\\deepseek-harness\\",
+  "node": "v24.22.2",
+  "platform": "win32/x64",
+  "smoke": false,
+  "serverVersion": "0.2.2-alpha.3",
+  "results": [
+    {
+      "id": "T1",
+      "title": "initialize advertises list/resume/fork/delete/close",
+      "status": "pass",
+      "ms": 2903,
+      "detail": {
+        "server": {
+          "name": "deepseek-harness-acp",
+          "version": "0.2.2-alpha.3"
+        },
+        "promptCapabilities": {
+          "image": false,
+          "audio": false,
+          "embeddedContext": false
+        },
+        "sessionCapabilities": [
+          "close",
+          "list",
+          "resume",
+          "fork",
+          "delete"
+        ]
+      }
+    },
+    {
+      "id": "T2",
+      "title": "new session completes a real model turn",
+      "status": "pass",
+      "ms": 1184,
+      "detail": {
+        "sessionId": "890a2ca0-3c03-4fac-aab1-a9b41a42c1f8",
+        "stopReason": "end_turn",
+        "answerPrefix": "OK"
+      }
+    },
+    {
+      "id": "T3",
+      "title": "fork a live session",
+      "status": "pass",
+      "ms": 36,
+      "detail": {
+        "sessionId": "ee9be902-1a32-4d11-987d-68535ae157ee"
+      }
+    },
+    {
+      "id": "T4",
+      "title": "fork inherits the completed conversation",
+      "status": "pass",
+      "ms": 913,
+      "detail": {
+        "answer": "BANANA-42"
+      }
+    },
+    {
+      "id": "T5",
+      "title": "close the source session",
+      "status": "pass",
+      "ms": 3,
+      "detail": {
+        "sessionId": "890a2ca0-3c03-4fac-aab1-a9b41a42c1f8"
+      }
+    },
+    {
+      "id": "T6",
+      "title": "session/list returns a cached title",
+      "status": "pass",
+      "ms": 4,
+      "detail": {
+        "title": "Remember this codeword for later:"
+      }
+    },
+    {
+      "id": "T7",
+      "title": "fork a closed session",
+      "status": "pass",
+      "ms": 21,
+      "detail": {
+        "sessionId": "9f505c53-5423-44dc-9f1b-d132806aca1f"
+      }
+    },
+    {
+      "id": "T8",
+      "title": "resume a closed session",
+      "status": "pass",
+      "ms": 15,
+      "detail": {
+        "configOptionCount": 3
+      }
+    },
+    {
+      "id": "T9",
+      "title": "fork rejects a mismatched cwd",
+      "status": "pass",
+      "ms": 8,
+      "detail": {
+        "error": "[-32602] Invalid params: session cwd does not match: C:\\Users\\paza\\AppData\\Local\\Temp"
+      }
+    },
+    {
+      "id": "T14",
+      "title": "load replays the committed conversation",
+      "status": "pass",
+      "ms": 14,
+      "detail": {
+        "replayedChars": 1949
+      }
+    },
+    {
+      "id": "T12",
+      "title": "delete a closed session",
+      "status": "pass",
+      "ms": 18,
+      "detail": {
+        "secondDeleteError": "[-32602] Invalid params: session is not deletable: 890a2ca0-3c03-4fac-aab1-a9b41a42c1f8"
+      }
+    },
+    {
+      "id": "T10",
+      "title": "fork rejects a session without a completed turn",
+      "status": "pass",
+      "ms": 35,
+      "detail": {
+        "error": "[-32602] Invalid params: session has no completed turn to fork: 654568e0-e362-4926-a1ba-279733deb33b"
+      }
+    },
+    {
+      "id": "T11",
+      "title": "failed MCP connection rolls back session/new",
+      "status": "pass",
+      "ms": 122,
+      "detail": {
+        "error": "[-32603] Internal error (details: mcp-client(missing): initial connection or tool synchronization failed)"
+      }
+    },
+    {
+      "id": "T13",
+      "title": "delete rejects an active session",
+      "status": "pass",
+      "ms": 23,
+      "detail": {
+        "error": "[-32602] Invalid params: session is active: 1c56d1ce-dca3-499e-9d64-4e302df7a24a"
+      }
+    }
+  ],
+  "serverStderrTail": "[llm-deepseek-api-key] model listing from https://api.deepseek.com/models loaded 2 model(s), skipped 0 row(s)\n\"C:\\Users\\paza\\AppData\\Local\\Temp\\acp-acceptance-home-UGYeev\\no-such-mcp-binary\" �� ���� ����७��� ��� ���譥�\r\n��������, �ᯮ��塞�� �ணࠬ��� ��� ������ 䠩���.\r\n"
+}
