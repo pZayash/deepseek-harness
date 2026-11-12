@@ -40,6 +40,10 @@ export async function replayUpdates(
     if (event === undefined) continue
     switch (event.type) {
       case 'user/message':
+        // Model-facing context snapshots (runtime context, developer
+        // instructions, compaction summaries) commit as user-role messages too;
+        // they are not conversation turns and stay out of the client transcript.
+        if (event.data.source.kind !== 'user') break
         for (const block of event.data.content) {
           const content = await replayBlock(ctx, block)
           if (content !== undefined) {

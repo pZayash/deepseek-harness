@@ -94,4 +94,27 @@ describe('ACP history replay projection', () => {
       }),
     ])
   })
+
+  it('replays only human-authored user messages', async () => {
+    const { agent } = await liveAgent()
+    agent.session.append('turn/start', { turn: 1 })
+    agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'Current runtime context. Internal snapshot.' }],
+      source: { kind: 'runtime-context', form: 'snapshot', sections: [] },
+    }), { surfaceOp: 'append' })
+    agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'human question' }],
+      source: { kind: 'user' },
+    }), { surfaceOp: 'append' })
+    agent.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+
+    const updates = await replayUpdates(harness!.ctx, agent, agent.session.snapshotEvents())
+
+    expect(updates).toEqual([
+      expect.objectContaining({
+        sessionUpdate: 'user_message_chunk',
+        content: { type: 'text', text: 'human question' },
+      }),
+    ])
+  })
 })

@@ -165,6 +165,7 @@ async function main() {
     assert(sessions.list !== undefined && sessions.list !== null, 'sessionCapabilities.list is not advertised')
     assert(sessions.resume !== undefined && sessions.resume !== null, 'sessionCapabilities.resume is not advertised')
     assert(sessions.close !== undefined && sessions.close !== null, 'sessionCapabilities.close is not advertised')
+    assert(capabilities.loadSession === true, 'loadSession is not advertised')
     initialized = true
     return {
       server: response.agentInfo,
@@ -358,6 +359,10 @@ async function main() {
       assert(
         replayed.includes('OK'),
         `load did not replay the assistant answer: ${JSON.stringify(replayed.slice(0, 200))}`,
+      )
+      assert(
+        !replayed.includes('Current runtime context'),
+        'load replayed model-facing runtime context as a user message',
       )
       openSessions.add(sessionA)
       await closeQuietly(sessionA)
