@@ -1,0 +1,6 @@
+# Consumer-owned overrides for kit-layout (names skipped by child-dirs/child-files resources).
+# dsh does not use the openspec proposal workflow; the skills would teach a
+# foreign change-management discipline that conflicts with .agents/notes + docs.
+openspec-apply-change
+openspec-archive-change
+openspec-propose

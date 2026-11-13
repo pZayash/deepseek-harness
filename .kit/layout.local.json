@@ -1,0 +1,84 @@
+{
+  "version": 3,
+  "comment": "Consumer-filtered copy of harness/tools/kit-layout/layout.json. Alias resources agents-skills and claude-skills are removed: their apply would REPLACE COPY (rmtree) the dsh-owned .agents/skills dir and the .claude/skills pointer file. Keep in sync with the kit layout on harness bumps.",
+  "gitignore": true,
+  "fallback_manifest": ".kit/fallback.txt",
+  "resources": [
+    {
+      "id": "cursor-skills",
+      "kind": "child-dirs",
+      "source": "harness/core/cursor/skills",
+      "target": ".cursor/skills",
+      "local_manifest": ".kit/local-overlay.txt"
+    },
+    {
+      "id": "cursor-rules",
+      "kind": "child-files",
+      "source": "harness/core/cursor/rules",
+      "target": ".cursor/rules",
+      "local_manifest": ".kit/local-overlay.txt"
+    },
+    {
+      "id": "cursor-commands",
+      "kind": "child-files",
+      "source": "harness/core/cursor/commands",
+      "target": ".cursor/commands",
+      "local_manifest": ".kit/local-overlay.txt"
+    },
+    {
+      "id": "core-tools",
+      "kind": "child-dirs",
+      "source": "harness/core/tools",
+      "target": "tools",
+      "include": [
+        "sandbox",
+        "docs-links"
+      ],
+      "local_manifest": ".kit/local-tools.txt"
+    },
+    {
+      "id": "kit-tools-files",
+      "kind": "child-files",
+      "source": "harness/core/tools",
+      "target": "tools",
+      "include": [
+        "git-partial-stage.py"
+      ],
+      "local_manifest": ".kit/local-tools.txt"
+    },
+    {
+      "id": "cc-1c-skills",
+      "kind": "child-dirs",
+      "source": "harness/stacks/1c/skills",
+      "target": ".cursor/skills",
+      "local_manifest": ".kit/local-skills.txt",
+      "stacks": [
+        "1c"
+      ]
+    },
+    {
+      "id": "claude-commands",
+      "kind": "alias",
+      "source": ".cursor/commands",
+      "target": ".claude/commands"
+    },
+    {
+      "id": "pi-skills",
+      "kind": "alias",
+      "source": ".cursor/skills",
+      "target": ".pi/skills"
+    },
+    {
+      "id": "pi-prompts",
+      "kind": "alias",
+      "source": ".cursor/commands",
+      "target": ".pi/prompts"
+    },
+    {
+      "id": "pi-extensions",
+      "kind": "alias",
+      "source": "harness/pi/extensions",
+      "target": ".pi/extensions"
+    }
+  ]
+}
