@@ -20,7 +20,7 @@ import {
 import type { MessageId, MessageSource } from '@deepseek-ai/dsh-llm'
 import { buildForkSeed, latestCompletedPrefixBoundary } from '@deepseek-ai/dsh-session/fork'
 import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
-import type { Session, SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
+import type { Session, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
 import { assertNever } from '@deepseek-ai/dsh-util-values'

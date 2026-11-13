@@ -3136,6 +3136,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'options', description: 'optional cancellation.' }],
         returns: 'one snapshot per stored session.',
       },
+      {
+        signature: 'remove(id: SessionId, _options?: SessionPersistenceRemoveOptions): Promise<void>',
+        description: 'Delete one stored Session and every retained format generation.\n\nA backend implements this only when its storage can remove the artifact. Deletion refuses an active write owner, removes every generation of the Session, and emits `session/deleted` once the artifact is no longer observable. Read handles do not block deletion; they observe not-found afterwards.',
+        parameters: [{ name: 'id', description: 'the stored Session to delete.' }, { name: '_options', description: 'optional cancellation.' }],
+        throws: ['{SessionPersistenceNotFoundError} when no artifact exists.', '{SessionAlreadyOwnedError} while a write handle owns the Session.', '{SessionPersistenceUnsupportedError} when the backend has no deletion.'],
+      },
     ],
   },
   {
@@ -3154,6 +3160,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Read only a predecessor checkpoint\'s title as a zero-I/O listing hint.\n\nThe authoritative Session header supplies the lifecycle identity. A cache checkpoint can lag that log but cannot lead it because writes flush the log first, so a matching predecessor title is a genuine (possibly stale) fact from this Session. The registry still requires the current title projection\'s row version and schema. No other predecessor projection is exposed: format normalization can change their current meaning, and the cachedSnapshot / hydration paths continue to reject them.',
         parameters: [{ name: 'meta', description: 'authoritative listed Session header.' }],
         returns: 'a title-only block at the stored title row\'s watermark, or `undefined` when the record is current, newer, unrelated, missing, or incompatible with the title unit.',
+      },
+      {
+        signature: 'async remove(id: SessionId): Promise<void>',
+        description: 'Drop every persisted projection row for one Session that no longer exists. The caller deletes the authoritative log first; a missing row is a no-op.',
+        parameters: [{ name: 'id', description: 'the deleted Session identity.' }],
       },
       {
         signature: 'hydratePrepared( session: Session, events: readonly SessionEvent[], ): ProjectionSnapshot',
@@ -5464,6 +5475,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Read-only creation announcement after store entry.',
     description: 'Read-only creation announcement after store entry. New events reject until every synchronous listener has returned successfully. A synchronous throw vetoes creation and rolls back with a paired disposal; detach requested during dispatch is deferred. A returned-promise rejection is logged but cannot retroactively veto this synchronous boundary. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only sessions entered through that agent\'s context.',
     parameters: [{ name: 'session', description: 'the session just entered and announced.' }],
+  },
+  {
+    name: 'session/deleted',
+    mode: 'emit',
+    signature: '\'session/deleted\'(id: SessionId): void',
+    summary: 'One stored Session and every retained format generation were deleted.',
+    description: 'One stored Session and every retained format generation were deleted. Emitted after the artifact is no longer observable; derived indexes may drop their rows, and backends without a listener repair on rescan.',
+    parameters: [{ name: 'id', description: 'the deleted Session identity.' }],
   },
   {
     name: 'session/disposed',
@@ -9112,6 +9131,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionPersistenceOpenOptions',
     declaration: 'export interface SessionPersistenceOpenOptions {\n    readonly signal?: AbortSignal;\n}',
+  },
+  {
+    name: 'SessionPersistenceRemoveOptions',
+    declaration: 'export interface SessionPersistenceRemoveOptions {\n    readonly signal?: AbortSignal;\n}',
   },
   {
     name: 'SessionPersistenceRevision',

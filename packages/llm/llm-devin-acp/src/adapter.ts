@@ -448,11 +448,10 @@ export class DevinAcpAdapter extends LlmAdapter {
     try {
       await handle.setConfigOption(option.id, model)
     } catch (error: unknown) {
-      throw new LlmError(
-        `Devin rejected model "${model}"; refresh the model list and select one this account offers`,
-        'DEVIN_MODEL_UNAVAILABLE',
-        { cause: error },
-      )
+      throw LlmError.fromFailure({
+        message: `Devin rejected model "${model}"; refresh the model list and select one this account offers`,
+        code: 'DEVIN_MODEL_UNAVAILABLE',
+      }, { cause: error })
     }
   }
 
@@ -630,6 +629,9 @@ export class DevinAcpAdapter extends LlmAdapter {
       return new LlmError('Devin requires authentication; run `devin auth login` and retry', 'AUTH', { cause: error })
     }
     const stage = error instanceof DevinAcpFailure ? error.stage : 'unknown'
-    return new LlmError(`Devin ACP agent failed during ${operation} (stage: ${stage})`, 'DEVIN_ACP_FAILURE', { cause: error })
+    return LlmError.fromFailure({
+      message: `Devin ACP agent failed during ${operation} (stage: ${stage})`,
+      code: 'DEVIN_ACP_FAILURE',
+    }, { cause: error })
   }
 }

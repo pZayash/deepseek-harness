@@ -420,6 +420,22 @@ abstract stat(id: SessionId, options?: SessionPersistenceStatOptions): Promise<S
  * @returns one snapshot per stored session.
  */
 abstract list(options?: SessionPersistenceListOptions): Promise<readonly SessionPersistenceSnapshot[]>
+
+/**
+ * Delete one stored Session and every retained format generation.
+ *
+ * A backend implements this only when its storage can remove the artifact.
+ * Deletion refuses an active write owner, removes every generation of the
+ * Session, and emits `session/deleted` once the artifact is no longer
+ * observable. Read handles do not block deletion; they observe not-found
+ * afterwards.
+ * @param id - the stored Session to delete.
+ * @param _options - optional cancellation.
+ * @throws {SessionPersistenceNotFoundError} when no artifact exists.
+ * @throws {SessionAlreadyOwnedError} while a write handle owns the Session.
+ * @throws {SessionPersistenceUnsupportedError} when the backend has no deletion.
+ */
+remove(id: SessionId, _options?: SessionPersistenceRemoveOptions): Promise<void>
 ```
 
 Types: [SessionId](core.zh.md)

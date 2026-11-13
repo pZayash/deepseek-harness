@@ -6,9 +6,8 @@ import * as HostPlugin from '../src/index.ts'
 import { liveConfig, omitsGeneratedPage } from '../../../settings/settings/tests/live-config.ts'
 import { plainConfig } from '../../../settings/settings/src/schema.ts'
 import {
-  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_SEND_GESTURE, Config, apply,
+  DEFAULT_BUSY_ENTER_BEHAVIOR, DEFAULT_SEND_GESTURE,
 } from '@deepseek-ai/dsh-client-ui-conversation'
-
 
 describe('ui-conversation host', () => {
   it('registers, validates, and disposes the durable composer preferences', async () => {

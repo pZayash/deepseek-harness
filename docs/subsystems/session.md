@@ -1381,6 +1381,27 @@ Types: [Scoped](scope.md)
 
 Source: [`packages/core/session/src/index.ts`](../../packages/core/session/src/index.ts)
 
+<a id="sessiondeleted--emit"></a>
+
+#### `session/deleted` — emit
+
+One stored Session and every retained format generation were deleted. Emitted after the artifact is no longer observable; derived indexes may drop their rows, and backends without a listener repair on rescan.
+
+```ts cordis-catalog
+/**
+ * One stored Session and every retained format generation were deleted.
+ * Emitted after the artifact is no longer observable; derived indexes may
+ * drop their rows, and backends without a listener repair on rescan.
+ * @param id - the deleted Session identity.
+ * @mode emit
+ */
+'session/deleted'(id: SessionId): void
+```
+
+Types: [SessionId](core.md)
+
+Source: [`packages/session/session-persistence/src/index.ts`](../../packages/session/session-persistence/src/index.ts)
+
 <a id="sessiondisposed--emit"></a>
 
 #### `session/disposed` — emit

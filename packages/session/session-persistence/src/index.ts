@@ -239,7 +239,7 @@ export abstract class SessionPersistence extends Service {
    * observable. Read handles do not block deletion; they observe not-found
    * afterwards.
    * @param id - the stored Session to delete.
-   * @param options - optional cancellation.
+   * @param _options - optional cancellation.
    * @throws {SessionPersistenceNotFoundError} when no artifact exists.
    * @throws {SessionAlreadyOwnedError} while a write handle owns the Session.
    * @throws {SessionPersistenceUnsupportedError} when the backend has no deletion.
